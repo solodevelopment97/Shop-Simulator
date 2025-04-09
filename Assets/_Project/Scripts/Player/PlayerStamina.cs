@@ -15,12 +15,16 @@ public class PlayerStamina : MonoBehaviour
     [SerializeField] private Image fillArea;
     [SerializeField] private Gradient staminaGradient;
     [SerializeField] private float uiHideDelay = 3f;
-
+    
+    [Header("UI Animation References")]
+    public Animator staminaAnimator;
+    
     public float currentStamina => _currentStamina;
     private float _currentStamina;
     private float regenTimer;
     private float uiHideTimer;
     private PlayerMovement playerMovement;
+    private bool isUsingStamina;
 
     private void Awake()
     {
@@ -48,7 +52,8 @@ public class PlayerStamina : MonoBehaviour
 
     private void HandleStamina()
     {
-        // Konsumsi stamina saat lari
+        HandleUIAnimation();
+
         if (playerMovement.IsRunning && playerMovement.IsMoving)
         {
             _currentStamina -= runCostPerSecond * Time.deltaTime;
@@ -109,6 +114,18 @@ public class PlayerStamina : MonoBehaviour
         else
         {
             uiHideTimer = 0f;
+        }
+    }
+
+    void HandleUIAnimation()
+    {
+        if (currentStamina < maxStamina)
+        {
+            staminaAnimator.SetBool("Show", true);
+        }
+        else
+        {
+            staminaAnimator.SetBool("Show", false);
         }
     }
 
