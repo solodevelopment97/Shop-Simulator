@@ -3,40 +3,46 @@ using UnityEngine;
 public class PlayerCarry : MonoBehaviour
 {
     [SerializeField] private Transform holdPoint;
-    private GameObject carriedObject;
-    private ItemData carriedItem;
+    [SerializeField] private Camera cam;
+    private GameObject carriedItem;
+    private Transform carryPosition;
 
-    public bool IsCarrying => carriedObject != null;
+    public bool IsCarrying => carriedItem != null;
 
-    public void PickUp(GameObject obj, ItemData data)
+    private void Start()
     {
-        if (IsCarrying) return;
+        carryPosition = new GameObject("CarryPosition").transform;
+        carryPosition.SetParent(transform);
+        carryPosition.localPosition = new Vector3(0, 1.5f, 1); // Sesuaikan posisi sesuai kebutuhan
+    }
 
-        carriedObject = obj;
-        carriedItem = data;
+    public void PickUp(GameObject item)
+    {
+        if (IsCarrying) Drop();
 
-        obj.transform.SetParent(holdPoint);
-        obj.transform.localPosition = Vector3.zero;
-        obj.transform.localRotation = Quaternion.identity;
+        carriedItem = item;
+        carriedItem.transform.SetParent(holdPoint);
+        carriedItem.transform.localPosition = Vector3.zero;
+        carriedItem.transform.localRotation = Quaternion.identity;
 
-        var rb = obj.GetComponent<Rigidbody>();
-        if (rb) rb.isKinematic = true;
+        var rb = carriedItem.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
     }
 
     public void Drop()
     {
         if (!IsCarrying) return;
 
-        var rb = carriedObject.GetComponent<Rigidbody>();
-        if (rb) rb.isKinematic = false;
+        // Lepas dari tangan
+        carriedItem.transform.SetParent(null);
 
-        carriedObject.transform.SetParent(null);
-        carriedObject = null;
+        // Posisi tetap di HoldPoint
+        carriedItem.transform.position = holdPoint.position;
+
+        // Aktifkan rigidbody agar jatuh
+        var rb = carriedItem.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = false;
+
         carriedItem = null;
-    }
-
-    public ItemData GetCarriedItem()
-    {
-        return carriedItem;
     }
 }

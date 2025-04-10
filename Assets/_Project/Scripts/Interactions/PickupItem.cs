@@ -1,6 +1,5 @@
-// Scripts/Interactions/PickupItem.cs
-using UnityEngine;
 using Placement;
+using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
 public class PickupItem : MonoBehaviour, IInteractable
@@ -9,15 +8,41 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     public void Interact()
     {
-        if (itemData.itemType == ItemType.Furniture)
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
         {
-            FurniturePlacer.Instance.BeginPlacement(itemData, gameObject);
-            gameObject.SetActive(false);
+            Debug.Log("Sedang menempatkan furniture, tidak bisa ambil item lain.");
+            return;
         }
-        else
+
+        var player = GameObject.FindWithTag("Player");
+        if (player == null) return;
+
+        var carry = player.GetComponent<PlayerCarry>();
+        if (carry == null) return;
+
+        if (carry.IsCarrying)
         {
-            Debug.Log($"[ShopItem] Diambil: {itemData.itemName}");
-            Destroy(gameObject); // sementara, nanti masuk inventory
+            Debug.Log("Tidak bisa ambil, sedang membawa barang.");
+            return;
+        }
+
+        switch (itemData.itemType)
+        {
+            case ItemType.ShopItem:
+                carry.PickUp(gameObject);
+                break;
+
+            case ItemType.Furniture:
+                var placer = player.GetComponent<FurniturePlacer>();
+                if (placer != null)
+                {
+                    placer.BeginPlacement(itemData, gameObject);
+                }
+                break;
+
+            default:
+                Debug.LogWarning("ItemType tidak dikenali.");
+                break;
         }
     }
 
