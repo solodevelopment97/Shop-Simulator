@@ -1,3 +1,4 @@
+// Scripts/Player/PlayerInteraction.cs
 using UnityEngine;
 
 public class PlayerInteraction : MonoBehaviour
@@ -7,12 +8,6 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private Transform cameraTransform;
 
     private IInteractable currentInteractable;
-    private PlayerCarry playerCarry;
-
-    void Start()
-    {
-        playerCarry = GetComponent<PlayerCarry>();
-    }
 
     void Update()
     {
@@ -24,19 +19,13 @@ public class PlayerInteraction : MonoBehaviour
             {
                 currentInteractable.Interact();
             }
-            else if (playerCarry != null && playerCarry.IsCarrying)
-            {
-                playerCarry.Drop(); // Drop di udara jika tidak lihat objek interaksi
-            }
         }
     }
 
     void CheckForInteractable()
     {
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-        RaycastHit hit;
-
-        if (Physics.Raycast(ray, out hit, interactRange, interactableMask))
+        if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableMask))
         {
             currentInteractable = hit.collider.GetComponent<IInteractable>();
         }

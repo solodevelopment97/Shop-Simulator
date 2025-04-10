@@ -12,7 +12,7 @@ public class InteractableFurniture : MonoBehaviour, IInteractable
         gameObject.SetActive(false);
 
         // Kirim ke FurniturePlacer
-        FurniturePlacer.Instance.BeginPlacement(itemData, this);
+        FurniturePlacer.Instance.BeginPlacement(itemData, gameObject);
     }
 
     public void Restore()

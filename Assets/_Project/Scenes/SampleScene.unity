@@ -688,7 +688,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 128
   wireframeMaterial: {fileID: 2100000, guid: e0796c47a93f7f047a186918cd7a1927, type: 2}
-  defaultMaterial: {fileID: 2100000, guid: 488742d9905cba94d811bad38cc00e3d, type: 2}
+  solidMaterial: {fileID: 2100000, guid: 488742d9905cba94d811bad38cc00e3d, type: 2}
 --- !u!1 &823725248
 GameObject:
   m_ObjectHideFlags: 0
@@ -1638,7 +1638,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Table
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2479058591264132422, guid: 5a1986afbd0a04340ab9c41dee71b76f, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
