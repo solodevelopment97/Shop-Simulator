@@ -1,3 +1,4 @@
+using Placement;
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerCarry))]
@@ -7,19 +8,48 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private LayerMask interactableMask;
     [SerializeField] private Transform cameraTransform;
 
-    private IInteractable currentInteractable;
     private PlayerCarry playerCarry;
+    private IInteractable currentInteractable;
+    private RaycastHit lastHit;
 
-    private void Start()
+    private void Awake()
     {
         playerCarry = GetComponent<PlayerCarry>();
+
+        if (cameraTransform == null && Camera.main != null)
+        {
+            cameraTransform = Camera.main.transform;
+        }
+
+        if (cameraTransform == null)
+        {
+            Debug.LogError("PlayerInteraction: CameraTransform belum di-set dan tidak menemukan MainCamera.");
+        }
     }
 
     private void Update()
     {
-        CheckForInteractable();
+        if (cameraTransform == null) return;
+
+        DetectInteractable();
         HandleInteractionInput();
-        HandlePlacementInput();
+    }
+
+    private void DetectInteractable()
+    {
+        // Jika sedang dalam mode penempatan furniture, jangan deteksi interaksi
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+            return;
+
+        Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
+        if (Physics.Raycast(ray, out lastHit, interactRange, interactableMask))
+        {
+            currentInteractable = lastHit.collider.GetComponent<IInteractable>();
+        }
+        else
+        {
+            currentInteractable = null;
+        }
     }
 
     private void HandleInteractionInput()
@@ -36,33 +66,17 @@ public class PlayerInteraction : MonoBehaviour
             {
                 Debug.Log("Tidak bisa berinteraksi, sedang membawa barang.");
             }
-
-            return;
-        }
-
-        currentInteractable?.Interact();
-    }
-
-    private void HandlePlacementInput()
-    {
-        // Klik kanan untuk masuk ke mode placement jika sedang membawa item
-        if (Input.GetMouseButtonDown(1) && playerCarry.IsCarrying)
-        {
-            playerCarry.BeginPlacementFromHand();
-        }
-    }
-
-    private void CheckForInteractable()
-    {
-        Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableMask))
-        {
-            currentInteractable = hit.collider.GetComponent<IInteractable>();
         }
         else
         {
-            currentInteractable = null;
+            if (currentInteractable != null)
+            {
+                currentInteractable.Interact();
+            }
+            else
+            {
+                Debug.Log("Tidak ada objek untuk diinteraksi.");
+            }
         }
     }
 }
