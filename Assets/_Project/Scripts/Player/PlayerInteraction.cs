@@ -1,6 +1,6 @@
-// Scripts/Player/PlayerInteraction.cs
 using UnityEngine;
 
+[RequireComponent(typeof(PlayerCarry))]
 public class PlayerInteraction : MonoBehaviour
 {
     [SerializeField] private float interactRange = 3f;
@@ -12,40 +12,50 @@ public class PlayerInteraction : MonoBehaviour
 
     private void Start()
     {
-        playerCarry = GetComponent<PlayerCarry>();  
+        playerCarry = GetComponent<PlayerCarry>();
     }
-    void Update()
+
+    private void Update()
     {
         CheckForInteractable();
+        HandleInteractionInput();
+        HandlePlacementInput();
+    }
 
-        if (Input.GetKeyDown(KeyCode.E))
+    private void HandleInteractionInput()
+    {
+        if (!Input.GetKeyDown(KeyCode.E)) return;
+
+        if (playerCarry.IsCarrying)
         {
-            if (playerCarry != null && playerCarry.IsCarrying)
+            if (currentInteractable == null)
             {
-                if (currentInteractable == null)
-                {
-                    // Drop jika tidak ada target interaksi
-                    playerCarry.Drop();
-                }
-                else
-                {
-                    // TOLAK interaksi jika sedang bawa barang
-                    Debug.Log("Tidak bisa berinteraksi, sedang membawa barang.");
-                }
-
-                return;
+                playerCarry.Drop();
+            }
+            else
+            {
+                Debug.Log("Tidak bisa berinteraksi, sedang membawa barang.");
             }
 
-            if (currentInteractable != null)
-            {
-                currentInteractable.Interact();
-            }
+            return;
+        }
+
+        currentInteractable?.Interact();
+    }
+
+    private void HandlePlacementInput()
+    {
+        // Klik kanan untuk masuk ke mode placement jika sedang membawa item
+        if (Input.GetMouseButtonDown(1) && playerCarry.IsCarrying)
+        {
+            playerCarry.BeginPlacementFromHand();
         }
     }
 
-    void CheckForInteractable()
+    private void CheckForInteractable()
     {
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
+
         if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableMask))
         {
             currentInteractable = hit.collider.GetComponent<IInteractable>();

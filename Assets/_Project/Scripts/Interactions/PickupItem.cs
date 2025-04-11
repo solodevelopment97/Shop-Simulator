@@ -6,6 +6,10 @@ public class PickupItem : MonoBehaviour, IInteractable
 {
     public ItemData itemData;
 
+    private static GameObject cachedPlayer;
+    private static PlayerCarry cachedCarry;
+    private static FurniturePlacer cachedPlacer;
+
     public void Interact()
     {
         if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
@@ -14,13 +18,11 @@ public class PickupItem : MonoBehaviour, IInteractable
             return;
         }
 
-        var player = GameObject.FindWithTag("Player");
+        var player = GetPlayer();
         if (player == null) return;
 
-        var carry = player.GetComponent<PlayerCarry>();
-        if (carry == null) return;
-
-        if (carry.IsCarrying)
+        var carry = GetCarry();
+        if (carry == null || carry.IsCarrying)
         {
             Debug.Log("Tidak bisa ambil, sedang membawa barang.");
             return;
@@ -29,11 +31,11 @@ public class PickupItem : MonoBehaviour, IInteractable
         switch (itemData.itemType)
         {
             case ItemType.ShopItem:
-                carry.PickUp(gameObject);
+                carry.PickUp(gameObject); // Tidak bisa di-place, hanya bisa dipegang & drop
                 break;
 
             case ItemType.Furniture:
-                var placer = player.GetComponent<FurniturePlacer>();
+                var placer = GetPlacer();
                 if (placer != null)
                 {
                     placer.BeginPlacement(itemData, gameObject);
@@ -41,7 +43,7 @@ public class PickupItem : MonoBehaviour, IInteractable
                 break;
 
             default:
-                Debug.LogWarning("ItemType tidak dikenali.");
+                Debug.LogWarning($"ItemType {itemData.itemType} tidak dikenali.");
                 break;
         }
     }
@@ -49,5 +51,37 @@ public class PickupItem : MonoBehaviour, IInteractable
     public string GetInteractText()
     {
         return $"Ambil {itemData.itemName} (E)";
+    }
+
+    private GameObject GetPlayer()
+    {
+        if (cachedPlayer == null)
+            cachedPlayer = GameObject.FindWithTag("Player");
+
+        return cachedPlayer;
+    }
+
+    private PlayerCarry GetCarry()
+    {
+        if (cachedCarry == null && GetPlayer() != null)
+            cachedCarry = cachedPlayer.GetComponent<PlayerCarry>();
+
+        return cachedCarry;
+    }
+
+    private FurniturePlacer GetPlacer()
+    {
+        if (cachedPlacer == null && GetPlayer() != null)
+            cachedPlacer = cachedPlayer.GetComponent<FurniturePlacer>();
+
+        return cachedPlacer;
+    }
+
+    [RuntimeInitializeOnLoadMethod]
+    private static void ResetCacheOnSceneLoad()
+    {
+        cachedPlayer = null;
+        cachedCarry = null;
+        cachedPlacer = null;
     }
 }
