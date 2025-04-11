@@ -1,248 +1,173 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Placement
 {
     public class FurniturePlacer : MonoBehaviour
     {
-        public static FurniturePlacer Instance { get; private set; }
+        public static FurniturePlacer Instance;
 
         [SerializeField] private Camera cam;
         [SerializeField] private LayerMask surfaceMask;
         [SerializeField] private Material wireframeMaterial;
         [SerializeField] private Material solidMaterial;
 
-        private Dictionary<Renderer, Material[]> originalMaterials = new();
-
-        private GameObject previewObject;
-        private GameObject originalObject;
-        private ItemData currentItemData;
+        private GameObject previewObj;
+        private ItemData currentItem;
+        private GameObject originalObj;
         private Bounds previewBounds;
 
-        private float currentRotation;
-        private bool isPlacementBlocked;
+        private float rotation;
+        private bool isBlocked;
 
-        public bool IsPlacing => previewObject != null;
+        public bool IsPlacing => previewObj != null;
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (Instance == null) Instance = this;
+            else Destroy(gameObject);
+        }
+
+        public void BeginPlacement(ItemData item, GameObject sourceObj)
+        {
+            if (previewObj != null) return;
+
+            currentItem = item;
+            originalObj = sourceObj;
+
+            if (originalObj != null)
+                originalObj.SetActive(false);
+
+            previewObj = Instantiate(item.prefab);
+            previewObj.name = item.itemName + "_Preview";
+
+            // Hitung bounds SEBELUM collider dimatikan
+            previewBounds = new Bounds(previewObj.transform.position, Vector3.zero);
+            foreach (var col in previewObj.GetComponentsInChildren<Collider>())
             {
-                Destroy(gameObject);
-                return;
+                previewBounds.Encapsulate(col.bounds);
             }
 
-            Instance = this;
+            // Nonaktifkan collider agar tidak bisa diklik/diinteraksi saat preview
+            foreach (var col in previewObj.GetComponentsInChildren<Collider>())
+            {
+                col.enabled = false;
+            }
+
+            ApplyWireframe(previewObj);
+            rotation = 0;
         }
 
         private void Update()
         {
-            if (!IsPlacing) return;
+            if (previewObj == null) return;
 
-            HandlePlacementInput();
-            UpdatePreviewTransform();
-        }
+            UpdatePreviewPosition();
 
-        public void BeginPlacement(ItemData itemData, GameObject sourceObject)
-        {
-            if (IsPlacing) return;
+            rotation += Input.GetAxis("Mouse ScrollWheel") * 100f;
 
-            currentItemData = itemData;
-            originalObject = sourceObject;
-
-            if (originalObject != null)
-                originalObject.SetActive(false);
-
-            previewObject = Instantiate(itemData.prefab);
-            originalMaterials.Clear(); // bersihkan dulu
-            foreach (var renderer in previewObject.GetComponentsInChildren<Renderer>())
+            if (Input.GetMouseButtonDown(0) && !isBlocked)
             {
-                originalMaterials[renderer] = renderer.sharedMaterials; // pakai sharedMaterials agar tidak instansi baru
-            }
-            previewObject.name = itemData.itemName + "_Preview";
-
-            previewBounds = CalculateBounds(previewObject);
-            DisableColliders(previewObject);
-            ApplyWireframeMaterial(previewObject);
-
-            currentRotation = 0f;
-        }
-
-        private void HandlePlacementInput()
-        {
-            currentRotation += Input.GetAxis("Mouse ScrollWheel") * 100f;
-
-            if (Input.GetMouseButtonDown(0) && !isPlacementBlocked)
-            {
-                ConfirmPlacement();
+                Place();
             }
 
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                CancelPlacement();
+                Cancel();
             }
         }
 
-        private void UpdatePreviewTransform()
+        private void UpdatePreviewPosition()
         {
-            if (cam == null)
-            {
-                Debug.LogError("Camera belum diassign di FurniturePlacer.");
-                return;
-            }
-
-            if (previewObject == null)
-            {
-                //Debug.LogWarning("Preview object null saat UpdatePreviewTransform.");
-                return;
-            }
-
-            if (previewBounds.size == Vector3.zero)
-            {
-                Debug.LogWarning("Preview bounds kosong. Kemungkinan collider belum terdeteksi.");
-                return;
-            }
-
             Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f));
             if (Physics.Raycast(ray, out RaycastHit hit, 10f, surfaceMask))
             {
-                Vector3 targetPosition = hit.point + Vector3.up * (previewBounds.center.y - previewBounds.min.y);
-                Quaternion targetRotation = Quaternion.Euler(0f, currentRotation, 0f);
+                float bottomOffset = previewBounds.center.y - previewBounds.min.y;
+                Vector3 targetPos = hit.point + Vector3.up * bottomOffset;
+                Quaternion targetRot = Quaternion.Euler(0, rotation, 0);
 
-                previewObject.transform.SetPositionAndRotation(targetPosition, targetRotation);
+                previewObj.transform.position = targetPos;
+                previewObj.transform.rotation = targetRot;
 
-                isPlacementBlocked = CheckCollisionAtPreview(targetPosition, targetRotation);
-                UpdateWireframeColor(isPlacementBlocked);
-            }
-        }
+                // Buat bounds transformasi di posisi baru
+                Bounds worldBounds = new Bounds(targetPos, previewBounds.size);
 
-        private void ConfirmPlacement()
-        {
-            if (originalObject != null)
-            {
-                originalObject.transform.SetPositionAndRotation(previewObject.transform.position, previewObject.transform.rotation);
-                originalObject.SetActive(true);
-                RestoreOriginalMaterials(originalObject);
-            }
+                // Cek apakah menyentuh ShopItem
+                Collider[] colliders = Physics.OverlapBox(
+                    worldBounds.center,
+                    worldBounds.extents,
+                    targetRot
+                );
 
-            Destroy(previewObject);
-            previewObject = null;
+                isBlocked = false;
 
-            ClearPlacementState();
-        }
-
-        private void CancelPlacement()
-        {
-            if (previewObject != null)
-                Destroy(previewObject);
-
-            if (originalObject != null)
-                originalObject.SetActive(true);
-
-            ClearPlacementState();
-        }
-
-        private void ClearPlacementState()
-        {
-            previewObject = null;
-            currentItemData = null;
-            originalObject = null;
-            currentRotation = 0f;
-            isPlacementBlocked = false;
-        }
-
-        private Bounds CalculateBounds(GameObject obj)
-        {
-            Bounds bounds = new Bounds(obj.transform.position, Vector3.zero);
-
-            foreach (Collider col in obj.GetComponentsInChildren<Collider>())
-            {
-                bounds.Encapsulate(col.bounds);
-            }
-
-            return bounds;
-        }
-
-        private void DisableColliders(GameObject obj)
-        {
-            foreach (var col in obj.GetComponentsInChildren<Collider>())
-            {
-                col.enabled = false;
-            }
-        }
-
-        private bool CheckCollisionAtPreview(Vector3 position, Quaternion rotation)
-        {
-            Bounds worldBounds = new Bounds(position, previewBounds.size);
-
-            Collider[] hits = Physics.OverlapBox(
-                worldBounds.center,
-                worldBounds.extents,
-                rotation
-            );
-
-            foreach (var hit in hits)
-            {
-                if (hit.GetComponent<ShopItemMarker>() != null)
+                foreach (var col in colliders)
                 {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private void ApplyWireframeMaterial(GameObject obj)
-        {
-            foreach (Renderer renderer in obj.GetComponentsInChildren<Renderer>())
-            {
-                // Ganti semua material jadi wireframeMaterial
-                int count = renderer.sharedMaterials.Length;
-                Material[] wireframes = new Material[count];
-                for (int i = 0; i < count; i++)
-                    wireframes[i] = new Material(wireframeMaterial); // instansi agar warnanya bisa diubah
-
-                renderer.materials = wireframes;
-            }
-        }
-
-        private void RestoreOriginalMaterials(GameObject obj)
-        {
-            foreach (var pair in originalMaterials)
-            {
-                if (pair.Key != null)
-                {
-                    pair.Key.materials = pair.Value;
-                }
-            }
-
-            originalMaterials.Clear();
-        }
-
-        private void UpdateWireframeColor(bool isBlocked)
-        {
-            if (previewObject == null)
-            {
-                //Debug.LogWarning("Preview object null saat UpdateWireframeColor.");
-                return;
-            }
-
-            Color color = isBlocked ? Color.red : Color.green;
-
-            foreach (Renderer renderer in previewObject.GetComponentsInChildren<Renderer>())
-            {
-                if (renderer == null || renderer.material == null)
-                {
-                    Debug.LogWarning("Renderer atau material null dalam UpdateWireframeColor.");
-                    continue;
+                    if (col.GetComponent<ShopItemMarker>() != null)
+                    {
+                        isBlocked = true;
+                        break;
+                    }
                 }
 
+                SetWireframeBlocked(isBlocked);
+            }
+        }
+
+
+
+        private void Place()
+        {
+            if (originalObj != null)
+            {
+                originalObj.transform.position = previewObj.transform.position;
+                originalObj.transform.rotation = previewObj.transform.rotation;
+                originalObj.SetActive(true);
+                ApplySolid(originalObj);
+            }
+
+            Destroy(previewObj);
+            ResetState();
+        }
+
+        private void Cancel()
+        {
+            Destroy(previewObj);
+            if (originalObj != null)
+                originalObj.SetActive(true);
+
+            ResetState();
+        }
+
+        private void ResetState()
+        {
+            previewObj = null;
+            currentItem = null;
+            originalObj = null;
+            rotation = 0f;
+            isBlocked = false;
+        }
+
+        private void ApplyWireframe(GameObject obj)
+        {
+            foreach (var r in obj.GetComponentsInChildren<Renderer>())
+                r.material = new Material(wireframeMaterial); // Instance baru agar warnanya bisa diubah
+        }
+
+        private void ApplySolid(GameObject obj)
+        {
+            foreach (var r in obj.GetComponentsInChildren<Renderer>())
+                r.material = solidMaterial;
+        }
+
+        private void SetWireframeBlocked(bool blocked)
+        {
+            Color color = blocked ? Color.red : Color.green;
+
+            foreach (var renderer in previewObj.GetComponentsInChildren<Renderer>())
+            {
                 if (renderer.material.HasProperty("_Color"))
-                {
                     renderer.material.color = color;
-                }
             }
         }
-
     }
 }

@@ -1,33 +1,17 @@
+// Assets/Scripts/Interaction/InteractableFurniture.cs
 using UnityEngine;
 using Placement;
 
-[RequireComponent(typeof(Collider))]
 public class InteractableFurniture : MonoBehaviour, IInteractable
 {
     [SerializeField] private ItemData itemData;
 
     public void Interact()
     {
-        if (itemData == null)
-        {
-            Debug.LogWarning("ItemData belum di-assign pada InteractableFurniture.");
-            return;
-        }
-
-        if (FurniturePlacer.Instance == null)
-        {
-            Debug.LogError("FurniturePlacer.Instance tidak ditemukan.");
-            return;
-        }
-        if (FurniturePlacer.Instance.IsPlacing)
-        {
-            Debug.Log("Sedang dalam mode placement. Tidak bisa ambil furniture lain.");
-            return;
-        }
-        // Nonaktifkan objek dari dunia
+        // Sembunyikan dari world
         gameObject.SetActive(false);
 
-        // Kirim data ke sistem FurniturePlacer
+        // Kirim ke FurniturePlacer
         FurniturePlacer.Instance.BeginPlacement(itemData, gameObject);
     }
 
@@ -38,8 +22,6 @@ public class InteractableFurniture : MonoBehaviour, IInteractable
 
     public string GetInteractText()
     {
-        return itemData != null
-            ? $"Ambil {itemData.itemName} (E)"
-            : "Ambil Furniture (E)";
+        return $"Ambil {itemData.itemName} (E)";
     }
 }

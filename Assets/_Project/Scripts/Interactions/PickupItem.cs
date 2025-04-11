@@ -14,26 +14,32 @@ public class PickupItem : MonoBehaviour, IInteractable
     {
         if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
         {
-            Debug.Log("Sedang dalam mode placement. Tidak bisa mengambil item.");
+            Debug.Log("Sedang menempatkan furniture, tidak bisa ambil item lain.");
             return;
         }
 
-        if (!TryGetPlayerComponents(out var carry, out var placer)) return;
+        var player = GetPlayer();
+        if (player == null) return;
 
-        if (carry.IsCarrying)
+        var carry = GetCarry();
+        if (carry == null || carry.IsCarrying)
         {
-            Debug.Log("Kamu sedang membawa barang.");
+            Debug.Log("Tidak bisa ambil, sedang membawa barang.");
             return;
         }
 
         switch (itemData.itemType)
         {
             case ItemType.ShopItem:
-                carry.PickUp(gameObject);
+                carry.PickUp(gameObject); // Tidak bisa di-place, hanya bisa dipegang & drop
                 break;
 
             case ItemType.Furniture:
-                placer.BeginPlacement(itemData, gameObject);
+                var placer = GetPlacer();
+                if (placer != null)
+                {
+                    placer.BeginPlacement(itemData, gameObject);
+                }
                 break;
 
             default:
@@ -47,27 +53,7 @@ public class PickupItem : MonoBehaviour, IInteractable
         return $"Ambil {itemData.itemName} (E)";
     }
 
-    private bool TryGetPlayerComponents(out PlayerCarry carry, out FurniturePlacer placer)
-    {
-        carry = GetCarry();
-        placer = GetPlacer();
-
-        if (carry == null)
-        {
-            Debug.LogError("PlayerCarry tidak ditemukan di Player.");
-            return false;
-        }
-
-        if (placer == null)
-        {
-            Debug.LogError("FurniturePlacer tidak ditemukan di Player.");
-            return false;
-        }
-
-        return true;
-    }
-
-    private static GameObject GetPlayer()
+    private GameObject GetPlayer()
     {
         if (cachedPlayer == null)
             cachedPlayer = GameObject.FindWithTag("Player");
@@ -75,26 +61,18 @@ public class PickupItem : MonoBehaviour, IInteractable
         return cachedPlayer;
     }
 
-    private static PlayerCarry GetCarry()
+    private PlayerCarry GetCarry()
     {
-        if (cachedCarry == null)
-        {
-            var player = GetPlayer();
-            if (player != null)
-                cachedCarry = player.GetComponent<PlayerCarry>();
-        }
+        if (cachedCarry == null && GetPlayer() != null)
+            cachedCarry = cachedPlayer.GetComponent<PlayerCarry>();
 
         return cachedCarry;
     }
 
-    private static FurniturePlacer GetPlacer()
+    private FurniturePlacer GetPlacer()
     {
-        if (cachedPlacer == null)
-        {
-            var player = GetPlayer();
-            if (player != null)
-                cachedPlacer = player.GetComponent<FurniturePlacer>();
-        }
+        if (cachedPlacer == null && GetPlayer() != null)
+            cachedPlacer = cachedPlayer.GetComponent<FurniturePlacer>();
 
         return cachedPlacer;
     }
