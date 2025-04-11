@@ -4,33 +4,57 @@ using Placement;
 [RequireComponent(typeof(FurniturePlacer))]
 public class PlayerCarry : MonoBehaviour
 {
+    [Header("Carry Settings")]
     [SerializeField] private Transform holdPoint;
     [SerializeField] private Camera cam;
 
     private GameObject carriedItem;
-    private Transform carryPosition;
+    private FurniturePlacer furniturePlacer;
 
     public bool IsCarrying => carriedItem != null;
 
-    private void Start()
+    private void Awake()
     {
-        carryPosition = new GameObject("CarryPosition").transform;
-        carryPosition.SetParent(transform);
-        carryPosition.localPosition = new Vector3(0, 1.5f, 1); // Posisi relatif ke player
+        if (holdPoint == null)
+        {
+            Debug.LogWarning("HoldPoint belum di-assign di Inspector. Membuat default.");
+            holdPoint = new GameObject("DefaultHoldPoint").transform;
+            holdPoint.SetParent(transform);
+            holdPoint.localPosition = new Vector3(0, 1.5f, 1);
+        }
+
+        if (cam == null)
+        {
+            cam = Camera.main;
+            if (cam == null)
+                Debug.LogError("Kamera tidak ditemukan. Pastikan memiliki MainCamera di scene.");
+        }
+
+        furniturePlacer = GetComponent<FurniturePlacer>();
+        if (furniturePlacer == null)
+            Debug.LogError("FurniturePlacer tidak ditemukan.");
     }
 
     public void PickUp(GameObject item)
     {
+        if (item == null)
+        {
+            Debug.LogWarning("Item null saat mencoba pickup.");
+            return;
+        }
+
         if (IsCarrying)
             Drop();
 
         carriedItem = item;
+
+        // Parenting dan posisi
         carriedItem.transform.SetParent(holdPoint);
         carriedItem.transform.localPosition = Vector3.zero;
         carriedItem.transform.localRotation = Quaternion.identity;
 
-        var rb = carriedItem.GetComponent<Rigidbody>();
-        if (rb != null)
+        // Matikan physics
+        if (carriedItem.TryGetComponent<Rigidbody>(out var rb))
             rb.isKinematic = true;
     }
 
@@ -41,8 +65,7 @@ public class PlayerCarry : MonoBehaviour
         carriedItem.transform.SetParent(null);
         carriedItem.transform.position = holdPoint.position;
 
-        var rb = carriedItem.GetComponent<Rigidbody>();
-        if (rb != null)
+        if (carriedItem.TryGetComponent<Rigidbody>(out var rb))
             rb.isKinematic = false;
 
         carriedItem = null;
@@ -52,22 +75,20 @@ public class PlayerCarry : MonoBehaviour
     {
         if (!IsCarrying) return;
 
-        var pickupItem = carriedItem.GetComponent<PickupItem>();
-        if (pickupItem == null || pickupItem.itemData == null) return;
-
-        if (pickupItem.itemData.itemType != ItemType.Furniture)
+        if (!carriedItem.TryGetComponent<PickupItem>(out var pickupItem) || pickupItem.itemData == null)
         {
-            Debug.Log("Hanya item bertipe Furniture yang bisa dipasang.");
+            Debug.LogWarning("Item tidak memiliki PickupItem atau itemData.");
             return;
         }
 
-        var placer = GetComponent<FurniturePlacer>();
-        if (placer == null) return;
+        if (pickupItem.itemData.itemType != ItemType.Furniture)
+        {
+            Debug.Log("Item bukan Furniture, tidak bisa dipasang.");
+            return;
+        }
 
-        // Lepas parent agar tidak nempel di kamera
-        carriedItem.transform.SetParent(null);
-
-        placer.BeginPlacement(pickupItem.itemData, carriedItem);
+        carriedItem.transform.SetParent(null); // lepas dari holdPoint
+        furniturePlacer.BeginPlacement(pickupItem.itemData, carriedItem);
         carriedItem = null;
     }
 }
