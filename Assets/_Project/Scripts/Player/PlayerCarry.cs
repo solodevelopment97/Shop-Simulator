@@ -9,9 +9,19 @@ public class PlayerCarry : MonoBehaviour
     [SerializeField] private Transform holdPoint;
     [SerializeField] private Camera cam;
 
+    [Header("Bobbing Effect Settings")]
+    [Tooltip("Kecepatan dasar bobbing (bila player bergerak)")]
+    [SerializeField] private float baseBobbingSpeed = 6f;
+    [Tooltip("Besaran offset bobbing")]
+    [SerializeField] private float baseBobbingAmount = 0.05f;
+    // Timer untuk menghitung gelombang bobbing
+    private float bobbingTimer = 0f;
+    // Simpan posisi default holdPoint atau posisi awal item di holdPoint
+    private Vector3 defaultHoldLocalPosition;
 
     private GameObject carriedItem;
     private FurniturePlacer furniturePlacer;
+    private PlayerMovement playerMovement;
 
     public bool IsCarrying => carriedItem != null;
     public GameObject HeldItem => carriedItem;
@@ -25,6 +35,7 @@ public class PlayerCarry : MonoBehaviour
             holdPoint.SetParent(transform);
             holdPoint.localPosition = new Vector3(0, 1.5f, 1);
         }
+        defaultHoldLocalPosition = holdPoint.localPosition;
 
         if (cam == null)
         {
@@ -34,8 +45,40 @@ public class PlayerCarry : MonoBehaviour
         }
 
         furniturePlacer = GetComponent<FurniturePlacer>();
+        playerMovement = GetComponent<PlayerMovement>();
+
+        if (playerMovement == null)
+            Debug.LogError("PlayerMovement tidak ditemukan.");
         if (furniturePlacer == null)
             Debug.LogError("FurniturePlacer tidak ditemukan.");
+    }
+
+    private void Update()
+    {
+        // Jika ada item yang dipegang, update efek bobbing
+        if (IsCarrying && carriedItem != null)
+        {
+            // Gunakan data dari PlayerMovement jika tersedia
+            if (playerMovement != null && playerMovement.IsMoving)
+            {
+                // Gunakan kecepatan relatif (misal: currentSpeed dibandingkan dengan runSpeed) agar efek disesuaikan
+                float speedFactor = playerMovement.currentSpeed / playerMovement.runSpeed; // Pastikan properti ini tersedia di PlayerMovement
+                bobbingTimer += baseBobbingSpeed * speedFactor * Time.deltaTime;
+                if (bobbingTimer > Mathf.PI * 2f)
+                    bobbingTimer -= Mathf.PI * 2f;
+
+                float offsetY = Mathf.Sin(bobbingTimer) * baseBobbingAmount;
+
+                // Selalu gunakan baseline yang sama, misalnya Vector3.zero
+                carriedItem.transform.localPosition = new Vector3(0, offsetY, 0);
+            }
+            else
+            {
+                // Saat tidak ada gerakan, reset timer dan pastikan posisi item tepat di baseline
+                bobbingTimer = 0f;
+                carriedItem.transform.localPosition = Vector3.zero;
+            }
+        }
     }
 
     public void PickUp(GameObject item)
