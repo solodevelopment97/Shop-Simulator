@@ -503,6 +503,8 @@ GameObject:
   - component: {fileID: 720634509}
   - component: {fileID: 720634510}
   - component: {fileID: 720634511}
+  - component: {fileID: 720634512}
+  - component: {fileID: 720634513}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -690,6 +692,32 @@ MonoBehaviour:
     m_Bits: 128
   wireframeMaterial: {fileID: 2100000, guid: e0796c47a93f7f047a186918cd7a1927, type: 2}
   solidMaterial: {fileID: 2100000, guid: 488742d9905cba94d811bad38cc00e3d, type: 2}
+--- !u!114 &720634512
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 720634503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32cb1d73a8078ec40a28f60e1f2513f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxSlots: 7
+  slots: []
+--- !u!114 &720634513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 720634503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2242a2446d3bd94497257306ab61dbe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &823725248
 GameObject:
   m_ObjectHideFlags: 0

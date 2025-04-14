@@ -1,5 +1,6 @@
 using UnityEngine;
 using Placement;
+using ShopSimulator;
 
 [RequireComponent(typeof(FurniturePlacer))]
 public class PlayerCarry : MonoBehaviour
@@ -8,10 +9,12 @@ public class PlayerCarry : MonoBehaviour
     [SerializeField] private Transform holdPoint;
     [SerializeField] private Camera cam;
 
+
     private GameObject carriedItem;
     private FurniturePlacer furniturePlacer;
 
     public bool IsCarrying => carriedItem != null;
+    public GameObject HeldItem => carriedItem;
 
     private void Awake()
     {
@@ -62,6 +65,14 @@ public class PlayerCarry : MonoBehaviour
     {
         if (!IsCarrying) return;
 
+        // Ambil komponen Inventory dari player
+        Inventory inv = GetComponent<Inventory>();
+        if (inv != null && carriedItem != null && carriedItem.TryGetComponent<PickupItem>(out var pickup))
+        {
+            // Mengurangi inventory sebanyak 1 unit dari item yang di-drop
+            inv.RemoveItem(pickup.itemData, 1);
+        }
+
         carriedItem.transform.SetParent(null);
         carriedItem.transform.position = holdPoint.position;
 
@@ -90,5 +101,20 @@ public class PlayerCarry : MonoBehaviour
         carriedItem.transform.SetParent(null); // lepas dari holdPoint
         furniturePlacer.BeginPlacement(pickupItem.itemData, carriedItem);
         carriedItem = null;
+    }
+    /// <summary>
+    /// Mengosongkan referensi carriedItem tanpa mengubah status GameObject (misalnya bila hanya di-hide).
+    /// </summary>
+    public void ClearCarriedItem()
+    {
+        carriedItem = null;
+    }
+
+    /// <summary>
+    /// Mengatur carriedItem secara manual tanpa memanggil Drop() (misalnya saat item di-show kembali).
+    /// </summary>
+    public void SetCarriedItem(GameObject item)
+    {
+        carriedItem = item;
     }
 }
