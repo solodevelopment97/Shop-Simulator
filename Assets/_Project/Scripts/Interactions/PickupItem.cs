@@ -23,11 +23,11 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         if (!TryGetPlayerComponents(out var carry, out var placer, out var inventory)) return;
 
-        if (carry.IsCarrying)
-        {
-            Debug.Log("Kamu sedang membawa barang.");
-            return;
-        }
+        //if (carry.IsCarrying)
+        //{
+        //    Debug.Log("Kamu sedang membawa barang.");
+        //    return;
+        //}
 
         switch (itemData.itemType)
         {
@@ -38,6 +38,7 @@ public class PickupItem : MonoBehaviour, IInteractable
                 {
                     Debug.Log($"Item {itemData.itemName} ditambahkan ke inventory.");
                     Destroy(gameObject); // Hapus dari dunia
+                    FindFirstObjectByType<InventoryUI>()?.UpdateUI();
                 }
                 else
                 {

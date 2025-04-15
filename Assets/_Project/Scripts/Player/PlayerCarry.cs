@@ -14,6 +14,7 @@ public class PlayerCarry : MonoBehaviour
     [SerializeField] private float baseBobbingSpeed = 6f;
     [Tooltip("Besaran offset bobbing")]
     [SerializeField] private float baseBobbingAmount = 0.05f;
+
     // Timer untuk menghitung gelombang bobbing
     private float bobbingTimer = 0f;
     // Simpan posisi default holdPoint atau posisi awal item di holdPoint
@@ -22,8 +23,11 @@ public class PlayerCarry : MonoBehaviour
     private GameObject carriedItem;
     private FurniturePlacer furniturePlacer;
     private PlayerMovement playerMovement;
+    private Vector3 bobbingOffset = Vector3.zero;
 
     public bool IsCarrying => carriedItem != null;
+    public Transform HoldPoint => holdPoint;
+
     public GameObject HeldItem => carriedItem;
 
     private void Awake()
@@ -55,29 +59,29 @@ public class PlayerCarry : MonoBehaviour
 
     private void Update()
     {
-        // Jika ada item yang dipegang, update efek bobbing
         if (IsCarrying && carriedItem != null)
         {
-            // Gunakan data dari PlayerMovement jika tersedia
             if (playerMovement != null && playerMovement.IsMoving)
             {
-                // Gunakan kecepatan relatif (misal: currentSpeed dibandingkan dengan runSpeed) agar efek disesuaikan
-                float speedFactor = playerMovement.currentSpeed / playerMovement.runSpeed; // Pastikan properti ini tersedia di PlayerMovement
+                // Hitung offset bobbing
+                float speedFactor = playerMovement.currentSpeed / playerMovement.runSpeed;
                 bobbingTimer += baseBobbingSpeed * speedFactor * Time.deltaTime;
                 if (bobbingTimer > Mathf.PI * 2f)
                     bobbingTimer -= Mathf.PI * 2f;
 
                 float offsetY = Mathf.Sin(bobbingTimer) * baseBobbingAmount;
 
-                // Selalu gunakan baseline yang sama, misalnya Vector3.zero
-                carriedItem.transform.localPosition = new Vector3(0, offsetY, 0);
+                // Perbarui offset
+                bobbingOffset = new Vector3(0, offsetY, 0);
             }
             else
             {
-                // Saat tidak ada gerakan, reset timer dan pastikan posisi item tepat di baseline
-                bobbingTimer = 0f;
-                carriedItem.transform.localPosition = Vector3.zero;
+                // Smoothly kembalikan ke posisi nol saat berhenti
+                bobbingOffset = Vector3.Lerp(bobbingOffset, Vector3.zero, Time.deltaTime * 8f);
             }
+
+            // Terapkan offset ke posisi local
+            carriedItem.transform.localPosition = bobbingOffset;
         }
     }
 
@@ -114,6 +118,7 @@ public class PlayerCarry : MonoBehaviour
         {
             // Mengurangi inventory sebanyak 1 unit dari item yang di-drop
             inv.RemoveItem(pickup.itemData, 1);
+            FindFirstObjectByType<InventoryUI>()?.UpdateUI();
         }
 
         carriedItem.transform.SetParent(null);

@@ -1,15 +1,19 @@
+﻿using System.Collections.Generic;
 using UnityEngine;
-using ShopSimulator; // Pastikan namespace sesuai dengan project Anda
+using ShopSimulator;
+using Placement;
 
 public class InventoryHotkeyManager : MonoBehaviour
 {
     private Inventory inventory;
     private PlayerCarry playerCarry;
 
-    // Menyimpan referensi instance item yang sedang di-hold oleh keybind
-    private GameObject currentHeldInstance;
-    // Menyimpan index slot yang terakhir digunakan
+    // Dictionary untuk menyimpan instance item per slot (key = slot index)
+    private Dictionary<int, GameObject> slotInstances = new Dictionary<int, GameObject>();
+
+    // Menyimpan index slot yang sedang aktif dan instance yang sedang di-hold
     private int currentSlotIndex = -1;
+    private GameObject currentHeldInstance;
 
     private void Start()
     {
@@ -24,7 +28,11 @@ public class InventoryHotkeyManager : MonoBehaviour
 
     private void Update()
     {
-        // Periksa keybind untuk slot 1 sampai dengan inventory.maxSlots
+        // Jika dalam mode placement, jangan proses hotkey inventory
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+            return;
+
+        // Periksa input hotkey untuk slot 1 hingga inventory.maxSlots
         for (int i = 0; i < inventory.maxSlots; i++)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1 + i))
@@ -35,16 +43,26 @@ public class InventoryHotkeyManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Menangani logika keybind:
-    /// - Jika belum ada item di-hold, instantiate dan tampilkan item dari slot.
-    /// - Jika keybind yang ditekan sama dengan item yang sedang di-hold, toggle aktif/nonaktif.
-    /// - Jika keybind untuk item lain ditekan, hide item lama dan instantiate item baru.
-    /// Inventory tidak dikurangi (item tetap ada) sampai fungsi drop (yang menghapus item) dipanggil terpisah.
+    /// Menangani logika hotkey inventory:
+    /// - Jika currentHeldInstance sudah tidak valid (misalnya sudah didrop), reset referensinya.
+    /// - Jika tidak membawa item, ambil instance dari slot tersebut.
+    /// - Jika hotkey ditekan untuk slot yang sama, toggle show/hide instance.
+    /// - Jika hotkey ditekan untuk slot yang berbeda, sembunyikan instance aktif dan gunakan instance dari slot baru.
+    /// Fungsi ini tidak memanggil Drop(), karena fungsi drop sudah ditangani di tempat lain.
     /// </summary>
-    /// <param name="slotIndex">Indeks slot yang diakses oleh keybind.</param>
+    /// <param name="slotIndex">Indeks slot yang diakses oleh hotkey.</param>
     private void HandleHotkey(int slotIndex)
     {
-        // Validasi slot: jika slotIndex melebihi jumlah slot yang terisi, keluarkan pesan
+        // Pertama: cek validitas currentHeldInstance
+        if (currentHeldInstance != null && currentHeldInstance.transform.parent != playerCarry.HoldPoint)
+        {
+            // Instance ini sudah tidak berada di holdPoint (misalnya karena di-drop eksternal),
+            // sehingga kita reset referensinya.
+            currentHeldInstance = null;
+            currentSlotIndex = -1;
+        }
+
+        // Validasi: pastikan slotIndex berada dalam jangkauan inventory yang terisi
         if (slotIndex < 0 || slotIndex >= inventory.slots.Count)
         {
             Debug.Log("Slot inventory kosong.");
@@ -58,68 +76,75 @@ public class InventoryHotkeyManager : MonoBehaviour
             return;
         }
 
-        // Jika belum ada item yang di-hold, langsung instantiate dan tampilkan item tersebut.
+        // Jika tidak membawa item (atau currentHeldInstance sudah di-reset), ambil instance untuk slot tersebut.
         if (!playerCarry.IsCarrying || currentHeldInstance == null)
         {
-            GameObject instance = Instantiate(
-                slot.item.prefab,
-                playerCarry.transform.position,
-                playerCarry.transform.rotation
-            );
+            GameObject instance = GetOrInstantiateInstance(slotIndex, slot.item.prefab);
             currentHeldInstance = instance;
             currentSlotIndex = slotIndex;
-            // Gunakan method PickUp() supaya item diparent ke holdPoint
+            instance.SetActive(true);
             playerCarry.PickUp(instance);
             return;
         }
 
-        // Jika sudah ada item yang di-hold, periksa apakah item tersebut berasal dari slot yang sama.
-        // Ambil komponen PickupItem dari currentHeldInstance untuk membandingkan itemData.
-        PickupItem currentPickup = currentHeldInstance.GetComponent<PickupItem>();
-        if (currentPickup == null)
-        {
-            Debug.LogWarning("Item yang dipegang tidak memiliki komponen PickupItem.");
-            return;
-        }
-
-        // Jika keybind yang ditekan sama dengan yang sedang di-hold
+        // Jika hotkey ditekan untuk slot yang sama (toggle)
         if (currentSlotIndex == slotIndex)
         {
-            // Toggle aktif/nonaktif: jika aktif, hide; jika tersembunyi, show kembali.
             bool isActive = currentHeldInstance.activeSelf;
             currentHeldInstance.SetActive(!isActive);
-
-            if (!isActive)
+            if (currentHeldInstance.activeSelf)
             {
-                // Jika item di-show kembali, pastikan referensi di PlayerCarry di-update.
                 playerCarry.SetCarriedItem(currentHeldInstance);
             }
             else
             {
-                // Saat di-hide, clear referensinya dari PlayerCarry agar PickUp berikutnya tidak otomatis drop.
                 playerCarry.ClearCarriedItem();
             }
         }
-        else
+        else // Jika hotkey ditekan untuk slot yang berbeda (switch item)
         {
-            // Jika keybind untuk item yang berbeda ditekan:
-            // Hide item yang sedang di-hold
-            if (currentHeldInstance.activeSelf)
+            // Sembunyikan instance yang sedang aktif tanpa memanggil Drop()
+            if (currentHeldInstance != null && currentHeldInstance.activeSelf)
             {
                 currentHeldInstance.SetActive(false);
             }
-            // Perbarui currentSlotIndex dan instantiate item baru
-            GameObject newInstance = Instantiate(
-                slot.item.prefab,
-                playerCarry.transform.position,
-                playerCarry.transform.rotation
-            );
+            playerCarry.ClearCarriedItem();
+
+            // Ambil atau instantiate instance untuk slot baru, tampilkan, dan pick up
+            GameObject newInstance = GetOrInstantiateInstance(slotIndex, slot.item.prefab);
             currentHeldInstance = newInstance;
             currentSlotIndex = slotIndex;
-            // Pastikan item baru diparent ke holdPoint melalui PickUp()
-            // Karena playerCarry.ClearCarriedItem() telah dipanggil saat hide, 
-            // PickUp() tidak akan memanggil Drop() (karena IsCarrying jadi false).
+            newInstance.SetActive(true);
             playerCarry.PickUp(newInstance);
         }
+    }
+
+    /// <summary>
+    /// Mengembalikan instance item untuk slot tertentu dari dictionary.
+    /// Jika instance sudah ada namun parent-nya tidak valid (misalnya sudah di-drop), hapus entry dan instantiate baru.
+    /// </summary>
+    /// <param name="slotIndex">Indeks slot inventory.</param>
+    /// <param name="prefab">Prefab item untuk slot tersebut.</param>
+    /// <returns>GameObject instance yang valid.</returns>
+    private GameObject GetOrInstantiateInstance(int slotIndex, GameObject prefab)
+    {
+        if (slotInstances.ContainsKey(slotIndex))
+        {
+            GameObject existing = slotInstances[slotIndex];
+            if (existing == null || existing.transform.parent != playerCarry.HoldPoint)
+            {
+                // Jika instance sudah dihapus atau tidak valid, hapus entry dan buat baru
+                slotInstances.Remove(slotIndex);
+            }
+            else
+            {
+                return existing;
+            }
+        }
+
+        // Instantiate baru dan simpan di dictionary
+        GameObject instance = Instantiate(prefab, playerCarry.transform.position, playerCarry.transform.rotation);
+        slotInstances[slotIndex] = instance;
+        return instance;
     }
 }

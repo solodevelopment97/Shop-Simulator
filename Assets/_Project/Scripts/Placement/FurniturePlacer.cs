@@ -7,6 +7,7 @@ namespace Placement
     {
         public static FurniturePlacer Instance { get; private set; }
 
+        [Header("Placement Settings")]
         [SerializeField] private Camera cam;
         [SerializeField] private LayerMask surfaceMask;
         [SerializeField] private Material wireframeMaterial;
