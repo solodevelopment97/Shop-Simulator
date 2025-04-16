@@ -1,5 +1,6 @@
 using UnityEngine;
 using Placement;
+using ShopSimulator;
 
 [RequireComponent(typeof(FurniturePlacer))]
 public class PlayerCarry : MonoBehaviour
@@ -8,10 +9,26 @@ public class PlayerCarry : MonoBehaviour
     [SerializeField] private Transform holdPoint;
     [SerializeField] private Camera cam;
 
+    [Header("Bobbing Effect Settings")]
+    [Tooltip("Kecepatan dasar bobbing (bila player bergerak)")]
+    [SerializeField] private float baseBobbingSpeed = 6f;
+    [Tooltip("Besaran offset bobbing")]
+    [SerializeField] private float baseBobbingAmount = 0.05f;
+
+    // Timer untuk menghitung gelombang bobbing
+    private float bobbingTimer = 0f;
+    // Simpan posisi default holdPoint atau posisi awal item di holdPoint
+    private Vector3 defaultHoldLocalPosition;
+
     private GameObject carriedItem;
     private FurniturePlacer furniturePlacer;
+    private PlayerMovement playerMovement;
+    private Vector3 bobbingOffset = Vector3.zero;
 
     public bool IsCarrying => carriedItem != null;
+    public Transform HoldPoint => holdPoint;
+
+    public GameObject HeldItem => carriedItem;
 
     private void Awake()
     {
@@ -22,6 +39,7 @@ public class PlayerCarry : MonoBehaviour
             holdPoint.SetParent(transform);
             holdPoint.localPosition = new Vector3(0, 1.5f, 1);
         }
+        defaultHoldLocalPosition = holdPoint.localPosition;
 
         if (cam == null)
         {
@@ -31,8 +49,40 @@ public class PlayerCarry : MonoBehaviour
         }
 
         furniturePlacer = GetComponent<FurniturePlacer>();
+        playerMovement = GetComponent<PlayerMovement>();
+
+        if (playerMovement == null)
+            Debug.LogError("PlayerMovement tidak ditemukan.");
         if (furniturePlacer == null)
             Debug.LogError("FurniturePlacer tidak ditemukan.");
+    }
+
+    private void Update()
+    {
+        if (IsCarrying && carriedItem != null)
+        {
+            if (playerMovement != null && playerMovement.IsMoving)
+            {
+                // Hitung offset bobbing
+                float speedFactor = playerMovement.currentSpeed / playerMovement.runSpeed;
+                bobbingTimer += baseBobbingSpeed * speedFactor * Time.deltaTime;
+                if (bobbingTimer > Mathf.PI * 2f)
+                    bobbingTimer -= Mathf.PI * 2f;
+
+                float offsetY = Mathf.Sin(bobbingTimer) * baseBobbingAmount;
+
+                // Perbarui offset
+                bobbingOffset = new Vector3(0, offsetY, 0);
+            }
+            else
+            {
+                // Smoothly kembalikan ke posisi nol saat berhenti
+                bobbingOffset = Vector3.Lerp(bobbingOffset, Vector3.zero, Time.deltaTime * 8f);
+            }
+
+            // Terapkan offset ke posisi local
+            carriedItem.transform.localPosition = bobbingOffset;
+        }
     }
 
     public void PickUp(GameObject item)
@@ -62,6 +112,15 @@ public class PlayerCarry : MonoBehaviour
     {
         if (!IsCarrying) return;
 
+        // Ambil komponen Inventory dari player
+        Inventory inv = GetComponent<Inventory>();
+        if (inv != null && carriedItem != null && carriedItem.TryGetComponent<PickupItem>(out var pickup))
+        {
+            // Mengurangi inventory sebanyak 1 unit dari item yang di-drop
+            inv.RemoveItem(pickup.itemData, 1);
+            FindFirstObjectByType<InventoryUI>()?.UpdateUI();
+        }
+
         carriedItem.transform.SetParent(null);
         carriedItem.transform.position = holdPoint.position;
 
@@ -90,5 +149,20 @@ public class PlayerCarry : MonoBehaviour
         carriedItem.transform.SetParent(null); // lepas dari holdPoint
         furniturePlacer.BeginPlacement(pickupItem.itemData, carriedItem);
         carriedItem = null;
+    }
+    /// <summary>
+    /// Mengosongkan referensi carriedItem tanpa mengubah status GameObject (misalnya bila hanya di-hide).
+    /// </summary>
+    public void ClearCarriedItem()
+    {
+        carriedItem = null;
+    }
+
+    /// <summary>
+    /// Mengatur carriedItem secara manual tanpa memanggil Drop() (misalnya saat item di-show kembali).
+    /// </summary>
+    public void SetCarriedItem(GameObject item)
+    {
+        carriedItem = item;
     }
 }

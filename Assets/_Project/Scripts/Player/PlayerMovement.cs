@@ -6,7 +6,7 @@ public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 3.5f;
-    [SerializeField] private float runSpeed = 6f;
+    [SerializeField] public float runSpeed = 6f;
     [SerializeField] private float acceleration = 10f;
     [SerializeField] private float deceleration = 15f;
 
@@ -25,7 +25,7 @@ public class PlayerMovement : MonoBehaviour
     private CharacterController controller;
     private Vector3 velocity;
     private bool isGrounded;
-    private float currentSpeed;
+    public float currentSpeed;
     private Vector3 currentVelocity;
     private bool isRunning;
 
