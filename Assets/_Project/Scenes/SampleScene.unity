@@ -764,7 +764,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32cb1d73a8078ec40a28f60e1f2513f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxSlots: 7
+  maxSlots: 1
   slots: []
 --- !u!114 &720634513
 MonoBehaviour:

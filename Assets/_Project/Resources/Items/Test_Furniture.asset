@@ -13,7 +13,6 @@ MonoBehaviour:
   m_Name: Test_Furniture
   m_EditorClassIdentifier: 
   itemName: Furniture
-  itemIcon: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
+  icon: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
   prefab: {fileID: 8934430792512727838, guid: 5a1986afbd0a04340ab9c41dee71b76f, type: 3}
-  weight: 5
   itemType: 1

@@ -10,12 +10,23 @@ namespace ShopSimulator
         public int maxSlots = 20;
 
         [Header("Data Inventory")]
-        // Daftar slot inventory
+        // Daftar slot inventory yang fixed panjangnya
         public List<InventorySlot> slots = new List<InventorySlot>();
+
+        private void Awake()
+        {
+            // Inisialisasi list dengan maxSlots slot kosong
+            for (int i = 0; i < maxSlots; i++)
+            {
+                // Slot kosong direpresentasikan dengan item = null dan quantity = 0
+                slots.Add(new InventorySlot(null, 0));
+            }
+        }
 
         /// <summary>
         /// Menambah item ke inventory.
         /// Jika item sudah ada, akan dilakukan penumpukan (stack) jika memungkinkan.
+        /// Jika belum ada dan terdapat slot kosong, item akan disimpan di slot kosong.
         /// </summary>
         public bool AddItem(ItemData newItem, int quantity = 1)
         {
@@ -23,15 +34,18 @@ namespace ShopSimulator
             InventorySlot slot = slots.Find(x => x.item == newItem);
             if (slot != null)
             {
+                // Jika sudah ada, tambahkan quantity
                 slot.quantity += quantity;
                 return true;
             }
             else
             {
-                // Jika belum ada dan masih ada ruang slot
-                if (slots.Count < maxSlots)
+                // Jika belum ada, cari slot kosong (di mana item == null)
+                InventorySlot emptySlot = slots.Find(x => x.item == null);
+                if (emptySlot != null)
                 {
-                    slots.Add(new InventorySlot(newItem, quantity));
+                    emptySlot.item = newItem;
+                    emptySlot.quantity = quantity;
                     return true;
                 }
                 else
@@ -44,6 +58,7 @@ namespace ShopSimulator
 
         /// <summary>
         /// Menghapus item dari inventory.
+        /// Jika quantity item setelah pengurangan <= 0, maka slot dikosongkan tanpa menggeser index slot.
         /// </summary>
         public bool RemoveItem(ItemData itemToRemove, int quantity = 1)
         {
@@ -53,7 +68,9 @@ namespace ShopSimulator
                 slot.quantity -= quantity;
                 if (slot.quantity <= 0)
                 {
-                    slots.Remove(slot);
+                    // Jangan menghapus slot, cukup set sebagai kosong
+                    slot.item = null;
+                    slot.quantity = 0;
                 }
                 return true;
             }
@@ -61,7 +78,7 @@ namespace ShopSimulator
         }
 
         /// <summary>
-        /// Memeriksa apakah inventory memiliki item tertentu.
+        /// Memeriksa apakah inventory memiliki item tertentu dengan jumlah minimal tertentu.
         /// </summary>
         public bool HasItem(ItemData checkItem, int quantity = 1)
         {
