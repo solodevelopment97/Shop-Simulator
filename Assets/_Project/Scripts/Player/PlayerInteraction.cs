@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using ShopSimulator;
 using Placement;
 
@@ -10,106 +10,163 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private LayerMask interactableMask;
     [SerializeField] private Transform cameraTransform;
 
+    [Header("Key Settings")]
+    [SerializeField] private KeyCode interactKey = KeyCode.E;
+    [SerializeField] private KeyCode dropKey = KeyCode.G;
+
+    [Header("Hold Settings")]
+    [Tooltip("Detik untuk anggap E hold sebagai bulk")]
+    [SerializeField] private float holdThreshold = 0.5f;
+    [Tooltip("Jeda (detik) antar unit saat bulk")]
+    [SerializeField] private float placeInterval = 0.2f;
+
     private PlayerCarry playerCarry;
-    private IInteractable currentInteractable;
     private RaycastHit lastHit;
+    private bool hasHit;
+    private ShelfInteractable shelfTarget;
+    private InteractableFurniture furnTarget;
+
+    private bool eHeld = false;
+    private float eHoldStart = 0f;
+    private float lastPlaceTime = 0f;
+    public static bool BulkMode { get; private set; } = false;
 
     private void Awake()
     {
         playerCarry = GetComponent<PlayerCarry>();
-
         if (cameraTransform == null && Camera.main != null)
-        {
             cameraTransform = Camera.main.transform;
-        }
-
         if (cameraTransform == null)
-        {
-            Debug.LogError("PlayerInteraction: CameraTransform belum di-set dan tidak menemukan MainCamera.");
-        }
+            Debug.LogError("PlayerInteraction: CameraTransform belum di-set.");
     }
 
     private void Update()
     {
-        if (cameraTransform == null) return;
-
         DetectInteractable();
-        HandleInteractionInput();
+        DetectHold();
+        HandleInteraction();
+    }
+
+    private void DetectHold()
+    {
+        if (Input.GetKeyDown(interactKey))
+        {
+            eHeld = true;
+            eHoldStart = Time.time;
+            BulkMode = false;
+            lastPlaceTime = Time.time - placeInterval; // agar langsung placeOneUnit jika hold
+        }
+
+        if (eHeld && !BulkMode && Time.time - eHoldStart >= holdThreshold)
+        {
+            BulkMode = true;
+            eHeld = false;
+        }
+
+        if (Input.GetKeyUp(interactKey))
+        {
+            eHeld = false;
+        }
     }
 
     private void DetectInteractable()
     {
-        // Jika sedang dalam mode penempatan furniture, jangan deteksi interaksi
         if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
-            return;
-
-        Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-        if (Physics.Raycast(ray, out lastHit, interactRange, interactableMask))
         {
-            currentInteractable = lastHit.collider.GetComponent<IInteractable>();
+            hasHit = false;
+            shelfTarget = null;
+            furnTarget = null;
+            return;
+        }
+
+        var ray = new Ray(cameraTransform.position, cameraTransform.forward);
+        hasHit = Physics.Raycast(ray, out lastHit, interactRange, interactableMask);
+
+        if (hasHit)
+        {
+            shelfTarget = lastHit.collider.GetComponentInParent<ShelfInteractable>();
+            furnTarget = lastHit.collider.GetComponentInParent<InteractableFurniture>();
         }
         else
         {
-            currentInteractable = null;
+            shelfTarget = null;
+            furnTarget = null;
         }
     }
 
-    private void HandleInteractionInput()
+    private void HandleInteraction()
     {
-        // Tekan G untuk melakukan Drop
-        if (Input.GetKeyDown(KeyCode.G))
+        // 1) Drop (G)
+        if (Input.GetKeyDown(dropKey))
         {
             if (playerCarry.IsCarrying)
-            {
                 playerCarry.Drop();
+            return;
+        }
+
+        // 2) Bulk hold: saat BulkMode & masih tekan E
+        var holdingE = Input.GetKey(interactKey);
+        var heldPickup = playerCarry.HeldItem?.GetComponent<PickupItem>();
+        bool carryingShop = heldPickup != null && heldPickup.itemData.itemType == ItemType.ShopItem;
+
+        if (BulkMode && holdingE && carryingShop)
+        {
+            if (shelfTarget != null && Time.time - lastPlaceTime >= placeInterval)
+            {
+                if (!shelfTarget.PlaceOneUnit())
+                {
+                    Debug.Log("Rak penuh atau kardus habis.");
+                    // jika habis atau penuh, disable bulk agar tidak terus mencoba
+                    BulkMode = false;
+                }
+                lastPlaceTime = Time.time;
             }
             return;
         }
 
-        // Tekan E untuk Interaksi
-        if (!Input.GetKeyDown(KeyCode.E)) return;
-
-        if (playerCarry.IsCarrying)
+        // 3) Tap E (KeyUp): satu unit
+        if (Input.GetKeyUp(interactKey))
         {
-            // Jika sedang membawa barang, dan ada objek interaksi,
-            // periksa apakah objek interaksi merupakan item shop.
-            if (currentInteractable != null)
+            // A) Carry Shop + target rak → one unit
+            if (carryingShop)
             {
-                PickupItem pickup = lastHit.collider.GetComponent<PickupItem>();
-                if (pickup != null)
+                if (shelfTarget != null)
+                    shelfTarget.Interact();
+                else
+                    Debug.Log("Arahkan ke rak untuk meletakkan ShopItem.");
+                return;
+            }
+
+            // B) Carry Furniture → placement from hand
+            if (heldPickup != null && heldPickup.itemData.itemType == ItemType.Furniture)
+            {
+                playerCarry.BeginPlacementFromHand();
+                return;
+            }
+
+            // C) Hand empty → pickup item atau new furniture
+            if (!playerCarry.IsCarrying)
+            {
+                if (!hasHit)
                 {
-                    // Jika objek interaksi merupakan ShopItem, interaksi diizinkan (misalnya pickup atau swap)
-                    if (pickup.itemData.itemType == ItemType.ShopItem)
-                    {
-                        currentInteractable.Interact();
-                    }
-                    else
-                    {
-                        Debug.Log("Tidak bisa berinteraksi, sedang membawa barang (Furniture tidak bisa diambil saat membawa barang).");
-                    }
+                    Debug.Log("Tidak ada objek untuk diinteraksi.");
+                }
+                else if (lastHit.collider.TryGetComponent<PickupItem>(out var pick))
+                {
+                    pick.Interact();
+                }
+                else if (furnTarget != null)
+                {
+                    furnTarget.Interact();
                 }
                 else
                 {
-                    Debug.Log("Tidak bisa berinteraksi, sedang membawa barang.");
+                    Debug.Log($"Objek {lastHit.collider.name} tidak bisa diinteraksi.");
                 }
+                return;
             }
-            else
-            {
-                // Jika tidak ada objek interaksi, tidak terjadi apa-apa (drop dilakukan dengan G)
-                Debug.Log("Tidak ada objek untuk diinteraksi.");
-            }
-        }
-        else
-        {
-            // Jika tidak membawa barang, langsung lakukan interaksi pada objek yang terdeteksi
-            if (currentInteractable != null)
-            {
-                currentInteractable.Interact();
-            }
-            else
-            {
-                Debug.Log("Tidak ada objek untuk diinteraksi.");
-            }
+
+            Debug.Log("Interaksi tidak tersedia dalam kondisi ini.");
         }
     }
 }
