@@ -315,7 +315,7 @@ MonoBehaviour:
   - {fileID: 766149208622113470}
   - {fileID: 1699107152724146637}
   - {fileID: 5794655937586511077}
-  capacityPerItem: 5
+  capacityPerItem: 1
 --- !u!114 &4269909731783433274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -328,3 +328,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6026fd5d6299454c97ada3140ff6c5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  wireframeMaterial: {fileID: 2100000, guid: e0796c47a93f7f047a186918cd7a1927, type: 2}
