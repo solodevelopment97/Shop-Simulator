@@ -7,58 +7,66 @@ public class ShelfPreviewController : MonoBehaviour
 
     private IPreviewable currentTarget;
     private GameObject previewInstance;
-    private GameObject lastPrefab;  // <— simpan prefab terakhir
+    private GameObject lastPrefab;  // prefab yang sedang di–preview
 
-    void Update()
+    private void Awake()
     {
-        if (cam == null) return;
+        if (cam == null) cam = Camera.main;
+    }
 
-        // Raycast ke layer Interactable
-        bool hit = Physics.Raycast(
-            cam.ViewportPointToRay(new Vector3(0.5f, 0.5f)),
-            out var info,
-            3f,
-            LayerMask.GetMask("Interactable")
-        );
+    private void Update()
+    {
+        // 1) Raycast
+        var ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f));
+        bool hit = Physics.Raycast(ray, out var info, 3f, LayerMask.GetMask("Interactable"));
+
         if (!hit)
         {
-            ClearPreview();
+            // kalau ga kena apa‑apa → hide preview saja
+            HidePreview();
             currentTarget = null;
             lastPrefab = null;
             return;
         }
 
-        // dapatkan IPreviewable dan prefab
+        // 2) Coba dapatkan IPreviewable & prefab + transform
         var previewable = info.collider.GetComponentInParent<IPreviewable>();
-        var prefabOpt = previewable?.GetPreviewPrefab();
+        var prefab = previewable?.GetPreviewPrefab();
         var tfOpt = previewable?.GetPreviewTransform();
-        if (previewable == null || prefabOpt == null || !tfOpt.HasValue)
+
+        if (previewable == null || prefab == null || !tfOpt.HasValue)
         {
-            ClearPreview();
+            HidePreview();
             currentTarget = previewable;
             lastPrefab = null;
             return;
         }
 
-        // Kalau target baru **atau** prefab baru → reset preview
-        if (previewable != currentTarget || prefabOpt != lastPrefab)
+        // 3) Jika target baru atau prefab berubah, rebuild previewInstance
+        if (previewable != currentTarget || prefab != lastPrefab)
         {
-            ClearPreview();
+            HidePreview();
+            Destroy(previewInstance);
+            previewInstance = null;
+
             currentTarget = previewable;
-            lastPrefab = prefabOpt;
+            lastPrefab = prefab;
         }
 
-        // Panggil ShowPreview dengan prefab & transform
-        ShowPreview(prefabOpt, tfOpt.Value.position, tfOpt.Value.rotation);
+        // 4) Show / update previewInstance
+        ShowPreview(prefab, tfOpt.Value.position, tfOpt.Value.rotation);
     }
 
     private void ShowPreview(GameObject prefab, Vector3 pos, Quaternion rot)
     {
+        // instantiate sekali saja per prefab
         if (previewInstance == null)
         {
             previewInstance = Instantiate(prefab);
+            // disable collider
             foreach (var c in previewInstance.GetComponentsInChildren<Collider>())
                 c.enabled = false;
+            // ganti semua materials ke wireframe
             foreach (var r in previewInstance.GetComponentsInChildren<Renderer>())
             {
                 var mats = new Material[r.sharedMaterials.Length];
@@ -67,19 +75,16 @@ public class ShelfPreviewController : MonoBehaviour
                 r.materials = mats;
             }
         }
+
+        // selalu update posisi & aktifkan
         previewInstance.transform.SetPositionAndRotation(pos, rot);
-        previewInstance.SetActive(true);
+        if (!previewInstance.activeSelf)
+            previewInstance.SetActive(true);
     }
 
-    private void ClearPreview()
+    private void HidePreview()
     {
-        if (previewInstance != null)
-            Destroy(previewInstance);
-        previewInstance = null;
-    }
-
-    private void Awake()
-    {
-        if (cam == null) cam = Camera.main;
+        if (previewInstance != null && previewInstance.activeSelf)
+            previewInstance.SetActive(false);
     }
 }

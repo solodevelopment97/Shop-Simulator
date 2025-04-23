@@ -1,18 +1,32 @@
-﻿using Placement;
+﻿using System.Linq;
+using Placement;
 using ShopSimulator;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
 public class PickupItem : MonoBehaviour, IInteractable
 {
+    public bool isReleased = false;
+
     public ItemData itemData;
     public int quantity = 1;
+    // Untuk Box:
+    public int cardboardCount = 1;    // berapa kardus yang dibawa
+    public int interiorCount = 0;     // berapa item di dalam kardus terakhir
 
     private static GameObject cachedPlayer;
     private static PlayerCarry cachedCarry;
     private static FurniturePlacer cachedPlacer;
     private static Inventory cachedInventory;
 
+    private void Awake()
+    { 
+        if (itemData.itemType == ItemType.Box)
+        {
+            // inisialisasi kardus & isi berdasarkan inventory slot
+            interiorCount = itemData.boxQuantities.Sum(); // total isi per kardus
+        }
+    }
     public void Interact()
     {
         // Jika sedang mode placement, batalkan
@@ -45,7 +59,14 @@ public class PickupItem : MonoBehaviour, IInteractable
                 if (inventory.AddItem(itemData, quantity))
                 {
                     Debug.Log($"Item {itemData.itemName} ditambahkan ke inventory.");
-                    Destroy(gameObject); // hanya menghancurkan produk rak
+
+                    var pi = gameObject.GetComponent<PickupItem>();
+                    if (!pi.isReleased)
+                    {
+                        ItemPoolManager.Instance.Despawn(pi.itemData, gameObject);
+                        pi.isReleased = true;
+                    }
+
                     FindFirstObjectByType<InventoryUI>()?.UpdateUI();
                 }
                 else if (shelf != null)
@@ -53,6 +74,27 @@ public class PickupItem : MonoBehaviour, IInteractable
                     // rollback stok kalau inventory penuh
                     shelf.AddStock(itemData, quantity);
                     Debug.Log("Inventory penuh, gagal mengambil dari rak.");
+                }
+                break;
+            case ItemType.Box:
+                int remaining = quantity;
+                // Ambil 1 kardus
+                if (inventory.AddBox(itemData, remaining, 1))
+                {
+                    Debug.Log($"Box {itemData.itemName} ditambahkan ke inventory.");
+
+                    var pi = gameObject.GetComponent<PickupItem>();
+                    if (!pi.isReleased)
+                    {
+                        ItemPoolManager.Instance.Despawn(pi.itemData, gameObject);
+                        pi.isReleased = true;
+                    }
+
+                    FindFirstObjectByType<InventoryUI>()?.UpdateUI();
+                }
+                else
+                {
+                    Debug.Log("Inventory penuh, tidak bisa mengambil box.");
                 }
                 break;
         }

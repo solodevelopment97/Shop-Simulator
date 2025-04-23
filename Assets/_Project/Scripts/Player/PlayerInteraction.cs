@@ -19,23 +19,23 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private KeyCode interactKey = KeyCode.E;
     [SerializeField] private KeyCode dropKey = KeyCode.G;
 
-    [Header("Hold Settings")]
-    [Tooltip("Detik untuk anggap E hold sebagai bulk")]
-    [SerializeField] private float holdThreshold = 0.5f;
-    [Tooltip("Jeda (detik) antar unit saat bulk")]
-    [SerializeField] private float placeInterval = 0.2f;
+    [Header("Bulk Settings")]
+    [Tooltip("Durasi hold R untuk bulk unpack/store")]
+    [SerializeField] private float storeHoldThreshold = 0.5f;
+    [Tooltip("Jeda antar unit saat bulk store/unpack")]
+    [SerializeField] private float storeInterval = 0.2f;
 
     private PlayerCarry playerCarry;
     private RaycastHit lastHit;
-    private bool hasHit;
     private ShelfInteractable shelfTarget;
     private InteractableFurniture furnTarget;
-    private IInteractable currentInteractable;  
+    private bool hasHit;
 
-    private bool eHeld = false;
-    private float eHoldStart = 0f;
-    private float lastPlaceTime = 0f;
-    public static bool BulkMode { get; private set; } = false;
+    // Bulk store state
+    private bool rHeld = false;
+    private bool bulkStoreMode = false;
+    private float rHoldStart = 0f;
+    private float lastStoreTime = 0f;
 
     private void Awake()
     {
@@ -51,30 +51,30 @@ public class PlayerInteraction : MonoBehaviour
     private void Update()
     {
         DetectInteractable();
-        DetectHold();
+        DetectStoreHold();
         UpdateInteractHintUI();
         HandleInteraction();
+        HandleBulkStore();
     }
 
-    private void DetectHold()
+    private void DetectStoreHold()
     {
-        if (Input.GetKeyDown(interactKey))
+        if (Input.GetKeyDown(storeKey))
         {
-            eHeld = true;
-            eHoldStart = Time.time;
-            BulkMode = false;
-            lastPlaceTime = Time.time - placeInterval; // agar langsung placeOneUnit jika hold
+            rHeld = true;
+            bulkStoreMode = false;
+            rHoldStart = Time.time;
+            lastStoreTime = Time.time - storeInterval;
         }
-
-        if (eHeld && !BulkMode && Time.time - eHoldStart >= holdThreshold)
+        if (rHeld && !bulkStoreMode && Time.time - rHoldStart >= storeHoldThreshold)
         {
-            BulkMode = true;
-            eHeld = false;
+            bulkStoreMode = true;
+            rHeld = false;
         }
-
-        if (Input.GetKeyUp(interactKey))
+        if (Input.GetKeyUp(storeKey))
         {
-            eHeld = false;
+            rHeld = false;
+            bulkStoreMode = false;
         }
     }
 
@@ -85,31 +85,18 @@ public class PlayerInteraction : MonoBehaviour
             hasHit = false;
             shelfTarget = null;
             furnTarget = null;
-            currentInteractable = null;
             return;
         }
 
         var ray = new Ray(cameraTransform.position, cameraTransform.forward);
         hasHit = Physics.Raycast(ray, out lastHit, interactRange, interactableMask);
-
-        if (hasHit)
-        {
-            shelfTarget = lastHit.collider.GetComponentInParent<ShelfInteractable>();
-            furnTarget = lastHit.collider.GetComponentInParent<InteractableFurniture>();
-            // **baru**: tangkap IInteractable umum untuk UI hint
-            currentInteractable = lastHit.collider.GetComponentInParent<IInteractable>();
-        }
-        else
-        {
-            shelfTarget = null;
-            furnTarget = null;
-            currentInteractable = null;
-        }
+        shelfTarget = hasHit ? lastHit.collider.GetComponentInParent<ShelfInteractable>() : null;
+        furnTarget = hasHit ? lastHit.collider.GetComponentInParent<InteractableFurniture>() : null;
     }
 
     private void HandleInteraction()
     {
-        // --- DROP (G) ---
+        // DROP (G)
         if (Input.GetKeyDown(dropKey))
         {
             if (playerCarry.IsCarrying)
@@ -117,81 +104,94 @@ public class PlayerInteraction : MonoBehaviour
             return;
         }
 
-        // --- STORE ke rak (R) ---
+        // STORE single (R tap)
         if (Input.GetKeyDown(storeKey))
         {
-            // hanya jalan kalau pegang ShopItem & target rak
-            var held = playerCarry.HeldItem?.GetComponent<PickupItem>();
-            if (held != null
-             && held.itemData.itemType == ItemType.ShopItem
-             && shelfTarget != null)
-            {
-                shelfTarget.Interact();
-            }
-            else
-            {
-                Debug.Log("Tidak ada barang untuk diletakkan ke rak.");
-            }
+            TryStore();
             return;
         }
 
-        // --- PICKUP / SWAP (E) ---
+        // PICKUP / PLACE (E)
         if (Input.GetKeyDown(interactKey))
         {
-            // 1) kalau ada PickupItem ShopItem di depan, ambil/swap
-            if (lastHit.collider != null
-             && lastHit.collider.TryGetComponent<PickupItem>(out var pick)
-             && pick.itemData.itemType == ItemType.ShopItem)
+            // Pickup ShopItem or Box
+            if (hasHit && lastHit.collider.TryGetComponent<PickupItem>(out var pick)
+                && (pick.itemData.itemType == ItemType.ShopItem || pick.itemData.itemType == ItemType.Box))
             {
                 pick.Interact();
                 return;
             }
-
-            // 2) kalau tangan kosong & target furniture, mulai placement
+            // Place furniture from hand
             if (!playerCarry.IsCarrying && furnTarget != null)
             {
                 furnTarget.Interact();
                 return;
             }
-
-            // 3) kalau tidak ada objek lain
             Debug.Log("Tidak ada objek untuk di-interaksi.");
         }
+    }
+
+    private void HandleBulkStore()
+    {
+        if (!bulkStoreMode || !Input.GetKey(storeKey) || shelfTarget == null)
+            return;
+
+        if (Time.time - lastStoreTime < storeInterval)
+            return;
+
+        TryStore();
+        lastStoreTime = Time.time;
+    }
+
+    private void TryStore()
+    {
+        var pu = playerCarry.HeldItem?.GetComponent<PickupItem>();
+        if (pu == null || shelfTarget == null)
+        {
+            Debug.Log("Tidak ada barang untuk disimpan.");
+            return;
+        }
+        // Panggil Interact() pada shelfTarget, yang akan unpack atau letakkan satu item
+        shelfTarget.Interact();
     }
 
     private void UpdateInteractHintUI()
     {
         if (interactHintText == null) return;
 
-        // 1) Kalau pegang ShopItem & menghadap rak → tombol STORE
-        var held = playerCarry.HeldItem?.GetComponent<PickupItem>();
-        if (held != null && held.itemData.itemType == ItemType.ShopItem
+        var pu = playerCarry.HeldItem?.GetComponent<PickupItem>();
+
+        // STORE hint
+        if (pu != null && (pu.itemData.itemType == ItemType.ShopItem || pu.itemData.itemType == ItemType.Box)
             && shelfTarget != null)
         {
-            interactHintText.text = $"[R] Letakkan 1x {held.itemData.itemName}";
+            interactHintText.text = pu.itemData.itemType == ItemType.Box
+                ? (bulkStoreMode ? $"Hold R: Bulk unpack {pu.itemData.itemName}" : $"[R] Unpack 1x dari {pu.itemData.itemName}")
+                : (bulkStoreMode ? $"Hold R: Bulk letakkan {pu.itemData.itemName}" : $"[R] Letakkan 1x {pu.itemData.itemName}");
             interactHintText.enabled = true;
             return;
         }
 
-        // 2) Kalau pegang apa saja & di depan ada PickupItem ShopItem → tombol PICKUP/SWAP
-        if (lastHit.collider != null
-         && lastHit.collider.TryGetComponent<PickupItem>(out var pickable)
-         && pickable.itemData.itemType == ItemType.ShopItem)
+        // PICKUP hint
+        if (hasHit && lastHit.collider.TryGetComponent<PickupItem>(out var pickable)
+            && (pickable.itemData.itemType == ItemType.ShopItem || pickable.itemData.itemType == ItemType.Box))
         {
-            interactHintText.text = $"[E] Ambil {pickable.itemData.itemName}";
+            interactHintText.text = pickable.itemData.itemType == ItemType.Box
+                ? "[E] Ambil Box"
+                : $"[E] Ambil {pickable.itemData.itemName}";
             interactHintText.enabled = true;
             return;
         }
 
-        // 3) Kalau tangan kosong & target furniture → tombol PLACE Furniture
+        // PLACE furniture hint
         if (!playerCarry.IsCarrying && furnTarget != null)
         {
-            interactHintText.text = $"[E] Pasang Furniture: {furnTarget.GetInteractText()}";
+            interactHintText.text = $"[E] {furnTarget.GetInteractText()}";
             interactHintText.enabled = true;
             return;
         }
 
-        // 4) Kalau tidak ada yang bisa di‑interaksi
         interactHintText.enabled = false;
     }
 }
+
