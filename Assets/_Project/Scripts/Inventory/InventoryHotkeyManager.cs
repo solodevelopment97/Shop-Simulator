@@ -42,109 +42,62 @@ public class InventoryHotkeyManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Menangani logika hotkey inventory:
-    /// - Jika currentHeldInstance sudah tidak valid (misalnya sudah didrop), reset referensinya.
-    /// - Jika tidak membawa item, ambil instance dari slot tersebut.
-    /// - Jika hotkey ditekan untuk slot yang sama, toggle show/hide instance.
-    /// - Jika hotkey ditekan untuk slot yang berbeda, sembunyikan instance aktif dan gunakan instance dari slot baru.
-    /// Fungsi ini tidak memanggil Drop(), karena fungsi drop sudah ditangani di tempat lain.
-    /// </summary>
-    /// <param name="slotIndex">Indeks slot yang diakses oleh hotkey.</param>
     private void HandleHotkey(int slotIndex)
     {
-        // Pertama: cek validitas currentHeldInstance
-        if (currentHeldInstance != null && currentHeldInstance.transform.parent != playerCarry.HoldPoint)
+        // 0) Kalau kita sudah drop, reset state
+        if (!playerCarry.IsCarrying && currentHeldInstance != null)
         {
-            // Instance ini sudah tidak berada di holdPoint (misalnya karena di-drop eksternal),
-            // sehingga kita reset referensinya.
             currentHeldInstance = null;
             currentSlotIndex = -1;
         }
 
-        // Validasi: pastikan slotIndex berada dalam jangkauan inventory yang terisi
-        if (slotIndex < 0 || slotIndex >= inventory.slots.Count)
+        // 1) Validasi slot
+        if (slotIndex < 0 || slotIndex >= inventory.slots.Count) return;
+        var slot = inventory.slots[slotIndex];
+        if (slot.item == null || slot.quantity <= 0)
         {
-            Debug.Log("Slot inventory kosong.");
+            Debug.Log($"Slot {slotIndex + 1} kosong.");
             return;
         }
 
-        InventorySlot slot = inventory.slots[slotIndex];
-        if (slot.item == null || slot.item.prefab == null)
+        // 2) Kalau tangan kosong → spawn & pickup
+        if (!playerCarry.IsCarrying)
         {
-            Debug.Log($"Slot {slotIndex + 1} kosong atau itemPrefab belum diassign.");
-            return;
-        }
+            // Spawn fresh dari pool
+            var inst = ItemPoolManager.Instance.Spawn(slot.item);
+            inst.transform.SetParent(playerCarry.HoldPoint, false);
+            inst.transform.localPosition = Vector3.zero;
+            inst.transform.localRotation = Quaternion.identity;
+            if (inst.TryGetComponent<Rigidbody>(out var rb)) rb.isKinematic = true;
 
-        // Jika tidak membawa item (atau currentHeldInstance sudah di-reset), ambil instance untuk slot tersebut.
-        if (!playerCarry.IsCarrying || currentHeldInstance == null)
-        {
-            GameObject instance = GetOrInstantiateInstance(slotIndex, slot.item.prefab);
-            currentHeldInstance = instance;
+            playerCarry.SetCarriedItem(inst);
+            currentHeldInstance = inst;
             currentSlotIndex = slotIndex;
-            instance.SetActive(true);
-            playerCarry.PickUp(instance);
             return;
         }
 
-        // Jika hotkey ditekan untuk slot yang sama (toggle)
-        if (currentSlotIndex == slotIndex)
+        // 3) Kalau sudah bawa & slot yang sama ditekan → drop
+        if (currentSlotIndex == slotIndex && currentHeldInstance != null)
         {
-            bool isActive = currentHeldInstance.activeSelf;
-            currentHeldInstance.SetActive(!isActive);
-            if (currentHeldInstance.activeSelf)
-            {
-                playerCarry.SetCarriedItem(currentHeldInstance);
-            }
-            else
-            {
-                playerCarry.ClearCarriedItem();
-            }
-        }
-        else // Jika hotkey ditekan untuk slot yang berbeda (switch item)
-        {
-            // Sembunyikan instance yang sedang aktif tanpa memanggil Drop()
-            if (currentHeldInstance != null && currentHeldInstance.activeSelf)
-            {
-                currentHeldInstance.SetActive(false);
-            }
-            playerCarry.ClearCarriedItem();
-
-            // Ambil atau instantiate instance untuk slot baru, tampilkan, dan pick up
-            GameObject newInstance = GetOrInstantiateInstance(slotIndex, slot.item.prefab);
-            currentHeldInstance = newInstance;
-            currentSlotIndex = slotIndex;
-            newInstance.SetActive(true);
-            playerCarry.PickUp(newInstance);
-        }
-    }
-
-    /// <summary>
-    /// Mengembalikan instance item untuk slot tertentu dari dictionary.
-    /// Jika instance sudah ada namun parent-nya tidak valid (misalnya sudah di-drop), hapus entry dan instantiate baru.
-    /// </summary>
-    /// <param name="slotIndex">Indeks slot inventory.</param>
-    /// <param name="prefab">Prefab item untuk slot tersebut.</param>
-    /// <returns>GameObject instance yang valid.</returns>
-    private GameObject GetOrInstantiateInstance(int slotIndex, GameObject prefab)
-    {
-        if (slotInstances.ContainsKey(slotIndex))
-        {
-            GameObject existing = slotInstances[slotIndex];
-            if (existing == null || existing.transform.parent != playerCarry.HoldPoint)
-            {
-                // Jika instance sudah dihapus atau tidak valid, hapus entry dan buat baru
-                slotInstances.Remove(slotIndex);
-            }
-            else
-            {
-                return existing;
-            }
+            // clear dari tangan
+            var pi = currentHeldInstance.GetComponent<PickupItem>();
+            playerCarry.Drop(removeFromInventory: false);// me‑unparent & enable physics
+            ItemPoolManager.Instance.Despawn(pi.itemData, currentHeldInstance);
+            currentHeldInstance = null;
+            currentSlotIndex = -1;
+            return;
         }
 
-        // Instantiate baru dan simpan di dictionary
-        GameObject instance = Instantiate(prefab, playerCarry.transform.position, playerCarry.transform.rotation);
-        slotInstances[slotIndex] = instance;
-        return instance;
+        // 4) Kalau bawa tapi tekan slot beda → drop dulu, lalu spawn slot baru
+        if (currentHeldInstance != null)
+        {
+            var oldPi = currentHeldInstance.GetComponent<PickupItem>();
+            // Hanya clear dari tangan, jangan potong inventory
+            playerCarry.Drop(removeFromInventory: false);
+            ItemPoolManager.Instance.Despawn(oldPi.itemData, currentHeldInstance);
+            currentHeldInstance = null;
+            currentSlotIndex = -1;
+        }
+        HandleHotkey(slotIndex); // rekursi kecil untuk spawn baru
     }
 }

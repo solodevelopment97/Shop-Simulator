@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace ShopSimulator
@@ -36,16 +37,33 @@ namespace ShopSimulator
             {
                 // Jika sudah ada, tambahkan quantity
                 slot.quantity += quantity;
+                if (newItem.itemType == ItemType.Box)
+                {
+                    // tambahkan interiorCount sesuai isi setiap kardus
+                    int perBox = newItem.boxQuantities.Sum();
+                    slot.interiorCount += perBox * quantity;
+                }
                 return true;
             }
             else
             {
                 // Jika belum ada, cari slot kosong (di mana item == null)
-                InventorySlot emptySlot = slots.Find(x => x.item == null);
+                var emptySlot = slots.Find(x => x.item == null);
                 if (emptySlot != null)
                 {
                     emptySlot.item = newItem;
                     emptySlot.quantity = quantity;
+
+                    if (newItem.itemType == ItemType.Box)
+                    {
+                        // atur interiorCount sesuai isi total kardus
+                        int perBox = newItem.boxQuantities.Sum();
+                        emptySlot.interiorCount = perBox * quantity;
+                    }
+                    else
+                    {
+                        emptySlot.interiorCount = quantity; // untuk ShopItem
+                    }
                     return true;
                 }
                 else
@@ -84,6 +102,36 @@ namespace ShopSimulator
         {
             InventorySlot slot = slots.Find(x => x.item == checkItem);
             return slot != null && slot.quantity >= quantity;
+        }
+        public void UpdateBoxInterior(ItemData boxData, int newInteriorCount)
+        {
+            var slot = slots.Find(s => s.item == boxData);
+            if (slot != null && slot.item.itemType == ItemType.Box)
+                slot.interiorCount = newInteriorCount;
+        }
+
+        public bool AddBox(ItemData boxData, int interiorCount, int count = 1)
+        {
+            var slot = slots.Find(s => s.item == boxData);
+            if (slot != null)
+            {
+                slot.quantity += count;
+                slot.interiorCount += interiorCount * count;
+                return true;
+            }
+            else
+            {
+                var empty = slots.Find(s => s.item == null);
+                if (empty != null)
+                {
+                    empty.item = boxData;
+                    empty.quantity = count;
+                    empty.interiorCount = interiorCount * count;
+                    return true;
+                }
+                Debug.Log("Inventory Full!");
+                return false;
+            }
         }
     }
 }

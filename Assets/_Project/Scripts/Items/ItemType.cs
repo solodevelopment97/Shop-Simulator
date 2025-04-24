@@ -2,5 +2,6 @@
 public enum ItemType
 {
     ShopItem,
-    Furniture
+    Furniture,
+    Box
 }

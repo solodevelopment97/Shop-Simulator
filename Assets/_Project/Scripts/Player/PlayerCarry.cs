@@ -108,17 +108,19 @@ public class PlayerCarry : MonoBehaviour
             rb.isKinematic = true;
     }
 
-    public void Drop()
+    public void Drop(bool removeFromInventory = true)  
     {
         if (!IsCarrying) return;
 
         // Ambil komponen Inventory dari player
-        Inventory inv = GetComponent<Inventory>();
-        if (inv != null && carriedItem != null && carriedItem.TryGetComponent<PickupItem>(out var pickup))
+        if (removeFromInventory && carriedItem.TryGetComponent<PickupItem>(out var pickup))
         {
-            // Mengurangi inventory sebanyak 1 unit dari item yang di-drop
-            inv.RemoveItem(pickup.itemData, 1);
-            FindFirstObjectByType<InventoryUI>()?.UpdateUI();
+            var inv = GetComponent<Inventory>();
+            if (inv != null)
+            {
+                inv.RemoveItem(pickup.itemData, 1);
+                FindFirstObjectByType<InventoryUI>()?.UpdateUI();
+            }
         }
 
         carriedItem.transform.SetParent(null);
