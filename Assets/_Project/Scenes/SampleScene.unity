@@ -1413,16 +1413,7 @@ PrefabInstance:
       propertyPath: m_Name
       value: Table (1)
       objectReference: {fileID: 0}
-    - target: {fileID: 8964762599496785345, guid: 5a1986afbd0a04340ab9c41dee71b76f, type: 3}
-      propertyPath: capacityPerItem
-      value: 5
-      objectReference: {fileID: 0}
-    - target: {fileID: 8964762599496785345, guid: 5a1986afbd0a04340ab9c41dee71b76f, type: 3}
-      propertyPath: spawnPoints.Array.size
-      value: 4
-      objectReference: {fileID: 0}
-    m_RemovedComponents:
-    - {fileID: 2479058591264132422, guid: 5a1986afbd0a04340ab9c41dee71b76f, type: 3}
+    m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -1641,6 +1632,7 @@ GameObject:
   - component: {fileID: 1445324473}
   - component: {fileID: 1445324472}
   - component: {fileID: 1445324471}
+  - component: {fileID: 1445324474}
   m_Layer: 0
   m_Name: Camera
   m_TagString: MainCamera
@@ -1767,6 +1759,24 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
+--- !u!114 &1445324474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1445324469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f41f710f7b8d0524bbd1adc8c72a8f55, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shopItemColor: {r: 0.3915094, g: 0.5538254, b: 1, a: 1}
+  boxItemColor: {r: 0.21542363, g: 0.41547042, b: 0.9716981, a: 1}
+  furnitureColor: {r: 0.990566, g: 0.95296276, b: 0.5186454, a: 1}
+  highlightMask:
+    serializedVersion: 2
+    m_Bits: 256
 --- !u!1 &1449397297
 GameObject:
   m_ObjectHideFlags: 0

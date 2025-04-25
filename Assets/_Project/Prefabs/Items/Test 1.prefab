@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 2499050926909652196}
   - component: {fileID: 2656126278444399941}
   - component: {fileID: 7963803755454431042}
+  - component: {fileID: 2967693503980781836}
   m_Layer: 8
   m_Name: Test 1
   m_TagString: Untagged
@@ -152,6 +153,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemData: {fileID: 11400000, guid: c596a26cb2ac24640af93400b49874d7, type: 2}
   quantity: 1
+  cardboardCount: 0
+  interiorCount: 0
 --- !u!114 &7963803755454431042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -164,3 +167,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 837584ab17387904da47958f89a37dde, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &2967693503980781836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 668312023411056843}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fea29bb7c508c244a1f805a5fd3fc4d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  outlineMode: 0
+  outlineColor: {r: 1, g: 1, b: 1, a: 1}
+  outlineWidth: 2
+  precomputeOutline: 0
+  bakeKeys: []
+  bakeValues: []

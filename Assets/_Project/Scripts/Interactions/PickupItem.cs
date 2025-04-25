@@ -1,17 +1,22 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using Placement;
+using QuickOutline;
 using ShopSimulator;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
+[RequireComponent(typeof(ShopItemMarker))]
+[RequireComponent(typeof(Outline))]
+
 public class PickupItem : MonoBehaviour, IInteractable
 {
-    public bool isReleased = false;
+    [NonSerialized] public bool isReleased = false;
 
     public ItemData itemData;
     public int quantity = 1;
     // Untuk Box:
-    public int cardboardCount = 1;    // berapa kardus yang dibawa
+    public int cardboardCount = 0;    // berapa kardus yang dibawa
     public int interiorCount = 0;     // berapa item di dalam kardus terakhir
 
     private static GameObject cachedPlayer;

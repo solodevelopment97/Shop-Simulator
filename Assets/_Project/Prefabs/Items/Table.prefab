@@ -171,6 +171,7 @@ GameObject:
   - component: {fileID: 1102042624243862383}
   - component: {fileID: 8964762599496785345}
   - component: {fileID: 4269909731783433274}
+  - component: {fileID: 3535165787742361938}
   m_Layer: 8
   m_Name: Table
   m_TagString: Untagged
@@ -314,8 +315,7 @@ MonoBehaviour:
   - {fileID: 7296031461352762785}
   - {fileID: 766149208622113470}
   - {fileID: 1699107152724146637}
-  - {fileID: 5794655937586511077}
-  capacityPerItem: 1
+  capacityPerItem: 5
 --- !u!114 &4269909731783433274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -328,4 +328,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6026fd5d6299454c97ada3140ff6c5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wireframeMaterial: {fileID: 2100000, guid: e0796c47a93f7f047a186918cd7a1927, type: 2}
+--- !u!114 &3535165787742361938
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8934430792512727838}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fea29bb7c508c244a1f805a5fd3fc4d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  outlineMode: 0
+  outlineColor: {r: 1, g: 1, b: 1, a: 1}
+  outlineWidth: 2
+  precomputeOutline: 0
+  bakeKeys: []
+  bakeValues: []
