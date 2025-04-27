@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using ShopSimulator;
+using Unity.VisualScripting.Antlr3.Runtime.Misc;
 
 [RequireComponent(typeof(Collider))]
 public class Shelf : MonoBehaviour
@@ -92,4 +93,16 @@ public class Shelf : MonoBehaviour
             if (!occupied[i]) return i;
         return -1;
     }
+    public bool HasEmptySlot()
+    {
+        foreach (var slot in occupied)
+        {
+            if (slot == false)
+            {
+                return true; // ketemu slot kosong
+            }
+        }
+        return false; // tidak ada slot kosong
+    }
+
 }

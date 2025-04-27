@@ -18,4 +18,4 @@ MonoBehaviour:
   itemType: 2
   boxItems:
   - {fileID: 11400000, guid: 2af4dcd8001e10648bb3896acf67a1db, type: 2}
-  boxQuantities: 0a000000
+  boxQuantities: 05000000
