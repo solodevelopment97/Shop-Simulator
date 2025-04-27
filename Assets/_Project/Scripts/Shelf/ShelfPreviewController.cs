@@ -3,70 +3,91 @@
 public class ShelfPreviewController : MonoBehaviour
 {
     public Material wireframeMaterial;
-    [SerializeField] private Camera cam;
+    public LayerMask shelfMask;   // assign di Inspector ke layer “Shelf”
+    public LayerMask pickupMask;  // assign di Inspector ke layer “Pickup”
 
+    private Transform camT;
     private IPreviewable currentTarget;
     private GameObject previewInstance;
-    private GameObject lastPrefab;  // prefab yang sedang di–preview
+    private GameObject lastPrefab;
 
     private void Awake()
     {
-        if (cam == null) cam = Camera.main;
+        camT = Camera.main.transform;
     }
 
     private void Update()
     {
-        // 1) Raycast
-        var ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f));
-        bool hit = Physics.Raycast(ray, out var info, 3f, LayerMask.GetMask("Interactable"));
-
-        if (!hit)
+        // RaycastAll mencakup kedua layer
+        int bothMasks = shelfMask | pickupMask;
+        Ray ray = new Ray(camT.position, camT.forward);
+        var hits = Physics.RaycastAll(ray, 5f, bothMasks);
+        if (hits.Length == 0)
         {
-            // kalau ga kena apa‑apa → hide preview saja
             HidePreview();
             currentTarget = null;
             lastPrefab = null;
             return;
         }
 
-        // 2) Coba dapatkan IPreviewable & prefab + transform
-        var previewable = info.collider.GetComponentInParent<IPreviewable>();
-        var prefab = previewable?.GetPreviewPrefab();
-        var tfOpt = previewable?.GetPreviewTransform();
+        // urutkan berdasarkan jarak
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
-        if (previewable == null || prefab == null || !tfOpt.HasValue)
+        bool didShelf = false;
+        foreach (var hit in hits)
         {
-            HidePreview();
-            currentTarget = previewable;
-            lastPrefab = null;
-            return;
+            // 1) kalau ini ItemShop/Box → langsung hide & keluar
+            if ((pickupMask & (1 << hit.collider.gameObject.layer)) != 0)
+            {
+                HidePreview();
+                currentTarget = null;
+                lastPrefab = null;
+                return;
+            }
+
+            // 2) kalau ini rak (IPreviewable) → tampilkan preview
+            if ((shelfMask & (1 << hit.collider.gameObject.layer)) != 0)
+            {
+                var prev = hit.collider.GetComponentInParent<IPreviewable>();
+                if (prev != null)
+                {
+                    var prefab = prev.GetPreviewPrefab();
+                    var tfOpt = prev.GetPreviewTransform();
+                    if (prefab != null && tfOpt.HasValue)
+                    {
+                        ShowOrUpdate(prefab, tfOpt.Value.position, tfOpt.Value.rotation, prev);
+                        didShelf = true;
+                        break;
+                    }
+                }
+            }
         }
 
-        // 3) Jika target baru atau prefab berubah, rebuild previewInstance
-        if (previewable != currentTarget || prefab != lastPrefab)
+        if (!didShelf)
         {
             HidePreview();
-            Destroy(previewInstance);
-            previewInstance = null;
+            currentTarget = null;
+            lastPrefab = null;
+        }
+    }
 
-            currentTarget = previewable;
+    private void ShowOrUpdate(GameObject prefab, Vector3 pos, Quaternion rot, IPreviewable prev)
+    {
+        // rebuild jika target/prefab berganti
+        if (prev != currentTarget || prefab != lastPrefab)
+        {
+            HidePreview();
+            if (previewInstance != null) Destroy(previewInstance);
+            previewInstance = null;
+            currentTarget = prev;
             lastPrefab = prefab;
         }
 
-        // 4) Show / update previewInstance
-        ShowPreview(prefab, tfOpt.Value.position, tfOpt.Value.rotation);
-    }
-
-    private void ShowPreview(GameObject prefab, Vector3 pos, Quaternion rot)
-    {
-        // instantiate sekali saja per prefab
         if (previewInstance == null)
         {
             previewInstance = Instantiate(prefab);
-            // disable collider
             foreach (var c in previewInstance.GetComponentsInChildren<Collider>())
                 c.enabled = false;
-            // ganti semua materials ke wireframe
             foreach (var r in previewInstance.GetComponentsInChildren<Renderer>())
             {
                 var mats = new Material[r.sharedMaterials.Length];
@@ -76,7 +97,6 @@ public class ShelfPreviewController : MonoBehaviour
             }
         }
 
-        // selalu update posisi & aktifkan
         previewInstance.transform.SetPositionAndRotation(pos, rot);
         if (!previewInstance.activeSelf)
             previewInstance.SetActive(true);

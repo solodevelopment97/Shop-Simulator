@@ -118,7 +118,7 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
         if (box.interiorCount <= 0)
         {
             // Kardus masih utuh: clear carried tapi jangan remove slot
-            carry.ClearCarriedItem();
+            // carry.ClearCarriedItem();
             Debug.Log("Kardus kosong, silakan drop atau isi ulang.");
         }
     }
@@ -128,6 +128,8 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
     {
         var pu = carry.HeldItem?.GetComponent<PickupItem>();
         if (pu == null) return null;
+
+        if (pu.interiorCount <= 0 && pu.itemData.itemType == ItemType.Box) return null;
 
         if (pu.itemData.itemType == ItemType.Box
             && pu.itemData.boxItems.Count > 0)
@@ -146,4 +148,10 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
         var pt = shelf.spawnPoints[slot];
         return (pt.position, pt.rotation);
     }
+    public bool CanStoreItem()
+    {
+        // misal shelf ini punya array slot
+        return shelf.HasEmptySlot(); // true kalau ada slot kosong
+    }
+
 }

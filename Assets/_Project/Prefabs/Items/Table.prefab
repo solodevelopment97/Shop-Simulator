@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3466235645842596252}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Slot0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -40,7 +40,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 766149208622113470}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Slot2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -71,7 +71,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7296031461352762785}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Slot1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -102,7 +102,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1699107152724146637}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Slot3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -133,7 +133,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5794655937586511077}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Slot4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -172,7 +172,7 @@ GameObject:
   - component: {fileID: 8964762599496785345}
   - component: {fileID: 4269909731783433274}
   - component: {fileID: 3535165787742361938}
-  m_Layer: 8
+  m_Layer: 9
   m_Name: Table
   m_TagString: Untagged
   m_Icon: {fileID: 0}

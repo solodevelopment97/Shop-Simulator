@@ -8,7 +8,10 @@ public class HoverHighlighter : MonoBehaviour
     public Color shopItemColor = Color.blue;
     public Color boxItemColor;
     public Color furnitureColor = Color.yellow;
-    public LayerMask highlightMask;
+
+    [Header("LayerMasks")]
+    public LayerMask shelfMask;
+    public LayerMask pickupMask;
 
     private Outline lastOutline;
 
@@ -22,7 +25,7 @@ public class HoverHighlighter : MonoBehaviour
         }
 
         // Raycast
-        if (Physics.Raycast(transform.position, transform.forward, out var hit, 5f, highlightMask))
+        if (Physics.Raycast(transform.position, transform.forward, out var hit, 5f, shelfMask | pickupMask))
         {
             var outline = hit.collider.GetComponentInParent<Outline>();
             if (outline != null)
