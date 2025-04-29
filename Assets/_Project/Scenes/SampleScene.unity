@@ -720,7 +720,7 @@ MonoBehaviour:
   interactKey: 101
   dropKey: 103
   storeHoldThreshold: 0.5
-  storeInterval: 0.2
+  storeInterval: 0.5
   shelfMask:
     serializedVersion: 2
     m_Bits: 512
