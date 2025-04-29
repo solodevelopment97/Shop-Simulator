@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using ShopSimulator;
+using Animations;
 using Placement;
 using NUnit.Framework.Interfaces;
 
@@ -9,6 +10,9 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
     private Shelf shelf;
     private PlayerCarry carry;
     private Inventory inventory;
+
+    [Header("Anim Settings")]
+    [SerializeField] private float flyDuration = 0.5f;
 
     private void Awake()
     {
@@ -65,24 +69,41 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
     private void StoreShopItem(PickupItem pu)
     {
         var data = pu.itemData;
-        
-        var prod = ItemPoolManager.Instance.Spawn(data);
-        prod.GetComponent<PickupItem>().isReleased = false;
 
-        if (!shelf.PlacePhysicalItem(prod)) 
+        Vector3 origin = carry.HoldPoint.position;
+        Quaternion rot = carry.HoldPoint.rotation;
+        GameObject ghost = Instantiate(data.prefab, origin, rot);
+
+        if (ghost.TryGetComponent<Rigidbody>(out var rb)) rb.isKinematic = true;
+        foreach (var c in ghost.GetComponentsInChildren<Collider>()) c.enabled = false;
+
+        int slotIndex = shelf.GetNextFreeSlotIndex();
+        if (slotIndex < 0)
         {
-            if (!pu.isReleased)
-            {
-                ItemPoolManager.Instance.Despawn(pu.itemData, gameObject);
-                pu.isReleased = true;
-            }
+            Destroy(ghost);
+            Debug.Log("Rak penuh!");
             return;
         }
-        shelf.AddStock(data, 1);
-        inventory.RemoveItem(data, 1);
-        FindFirstObjectByType<InventoryUI>()?.UpdateUI();
-        carry.ClearCarriedItem();
+        Vector3 targetPos = shelf.spawnPoints[slotIndex].position;
 
+        ItemMover.AnimateFly(ghost, targetPos, flyDuration, () =>
+        {
+            // callback: spawn real instance dan place
+            var real = ItemPoolManager.Instance.Spawn(data);
+            real.GetComponent<PickupItem>().isReleased = false;
+
+            if (!shelf.PlacePhysicalItem(real))
+                ItemPoolManager.Instance.Despawn(data, real);
+            else
+            {
+                shelf.AddStock(data, 1);
+                inventory.RemoveItem(data, 1);
+                FindFirstObjectByType<InventoryUI>()?.UpdateUI();
+            }
+        });
+
+        // 4) lepas item di tangan & return original ke pool
+        carry.ClearCarriedItem();
         if (!pu.isReleased)
         {
             ItemPoolManager.Instance.Despawn(data, pu.gameObject);
@@ -98,13 +119,30 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
         if (box.interiorCount <= 0) return;
 
         // Spawn sub-item
-        var subItem = data.boxItems[0];
-        
-        var prod = ItemPoolManager.Instance.Spawn(subItem);
-        prod.GetComponent<PickupItem>().isReleased = false;
+        Vector3 origin = box.transform.position;
+        Quaternion rot = box.transform.rotation;
+        GameObject ghost = Instantiate(data.boxItems[0].prefab, origin, rot);
 
-        if (!shelf.PlacePhysicalItem(prod)) { Destroy(prod); return; }
-        shelf.AddStock(subItem, 1);
+        if (ghost.TryGetComponent<Rigidbody>(out var rb)) rb.isKinematic = true;
+        foreach (var c in ghost.GetComponentsInChildren<Collider>()) c.enabled = false;
+
+        // 2) target pos
+        int slotIndex = shelf.GetNextFreeSlotIndex();
+        if (slotIndex < 0) { Destroy(ghost); return; }
+        Vector3 targetPos = shelf.spawnPoints[slotIndex].position;
+
+        // 3) animasi
+        ItemMover.AnimateFly(ghost, targetPos, flyDuration, () =>
+        {
+            // spawn real sub-item via pool
+            var real = ItemPoolManager.Instance.Spawn(data.boxItems[0]);
+            real.GetComponent<PickupItem>().isReleased = false;
+
+            if (!shelf.PlacePhysicalItem(real))
+                ItemPoolManager.Instance.Despawn(data.boxItems[0], real);
+            else
+                shelf.AddStock(data.boxItems[0], 1);
+        });
 
         // Kurangi interior, bukan jumlah kardus
         box.interiorCount--;
