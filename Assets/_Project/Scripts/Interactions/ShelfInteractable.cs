@@ -14,6 +14,11 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
     [Header("Anim Settings")]
     [SerializeField] private float flyDuration = 0.5f;
 
+    private bool isAnimating = false;
+
+    // expose ke luar supaya PlayerInteraction bisa cek
+    public bool IsAnimating => isAnimating;
+
     private void Awake()
     {
         shelf = GetComponent<Shelf>();
@@ -68,6 +73,9 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
 
     private void StoreShopItem(PickupItem pu)
     {
+        if (isAnimating) return;           // <<< blok kalau masih animasi
+        isAnimating = true;
+
         var data = pu.itemData;
 
         Vector3 origin = carry.HoldPoint.position;
@@ -99,7 +107,7 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
                 shelf.AddStock(data, 1);
                 inventory.RemoveItem(data, 1);
                 FindFirstObjectByType<InventoryUI>()?.UpdateUI();
-            }
+            }           
         });
 
         // 4) lepas item di tangan & return original ke pool
@@ -111,10 +119,14 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
         }
 
         Debug.Log($"Meletakkan 1x {data.itemName} ke rak.");
+        isAnimating = false;
     }
 
     private void UnpackBox(PickupItem box)
     {
+        if (isAnimating) return;           // <<< blok kalau masih animasi
+        isAnimating = true;
+
         var data = box.itemData;
         if (box.interiorCount <= 0) return;
 
@@ -142,6 +154,7 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
                 ItemPoolManager.Instance.Despawn(data.boxItems[0], real);
             else
                 shelf.AddStock(data.boxItems[0], 1);
+            isAnimating = false;
         });
 
         // Kurangi interior, bukan jumlah kardus
@@ -158,7 +171,7 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
             // Kardus masih utuh: clear carried tapi jangan remove slot
             // carry.ClearCarriedItem();
             Debug.Log("Kardus kosong, silakan drop atau isi ulang.");
-        }
+        }       
     }
 
     // Preview: pakai prefab ShopItem (untuk Box, subItem pertama)
@@ -189,7 +202,7 @@ public class ShelfInteractable : MonoBehaviour, IInteractable, IPreviewable
     public bool CanStoreItem()
     {
         // misal shelf ini punya array slot
-        return shelf.HasEmptySlot(); // true kalau ada slot kosong
+        return shelf.HasEmptySlot() && !isAnimating; // true kalau ada slot kosong
     }
 
 }

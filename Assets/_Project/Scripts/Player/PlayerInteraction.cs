@@ -103,14 +103,8 @@ public class PlayerInteraction : MonoBehaviour
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask))
         {
             var shelf = hit.collider.GetComponentInParent<ShelfInteractable>();
-            if (shelf != null && playerCarry.IsCarrying)
+            if (shelf != null && playerCarry.IsCarrying && shelf.CanStoreItem())
             {
-                if (!shelf.CanStoreItem())
-                {
-                    Debug.Log("Shelf penuh! Tidak bisa menaruh item.");
-                    return;
-                }
-
                 shelf.Interact();  // meletakkan 1 unit atau unpack box
                 return;
             }
