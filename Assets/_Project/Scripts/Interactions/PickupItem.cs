@@ -9,19 +9,19 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(ShopItemMarker))]
 [RequireComponent(typeof(Outline))]
-
 public class PickupItem : MonoBehaviour, IInteractable
 {
     [NonSerialized] public bool isReleased = false;
 
     public ItemData itemData;
     public int quantity = 1;
-    // Untuk Box:
-    public int cardboardCount = 0;    // berapa kardus yang dibawa
-    public int interiorCount = 0;     // berapa item di dalam kardus terakhir
+
+    // For Box:
+    public int cardboardCount = 0; // Number of boxes carried
+    public int interiorCount = 0;  // Number of items in the last box
 
     [Header("Pickup Animation")]
-    [Tooltip("Durasi animasi terbang ke tangan")]
+    [Tooltip("Duration of the animation flying to the hand")]
     public float pickupTweenDuration = 0.4f;
 
     private static GameObject cachedPlayer;
@@ -30,23 +30,22 @@ public class PickupItem : MonoBehaviour, IInteractable
     private static Inventory cachedInventory;
 
     private void Awake()
-    { 
-        if (itemData.itemType == ItemType.Box)
+    {
+        if (itemData?.itemType == ItemType.Box)
         {
-            // inisialisasi kardus & isi berdasarkan inventory slot
-            interiorCount = itemData.boxQuantities.Sum(); // total isi per kardus
+            // Initialize box & contents based on inventory slot
+            interiorCount = itemData.boxQuantities.Sum(); // Total contents per box
         }
     }
+
     public void Interact()
     {
-        // Jika sedang mode placement, batalkan
-        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+        if (IsPlacementModeActive())
         {
-            Debug.Log("Sedang dalam mode placement. Tidak bisa mengambil item.");
+            Debug.Log("Currently in placement mode. Cannot pick up item.");
             return;
         }
 
-        // Ambil komponen PlayerCarry, FurniturePlacer, Inventory
         if (!TryGetPlayerComponents(out var carry, out var placer, out var inventory))
             return;
 
@@ -61,9 +60,34 @@ public class PickupItem : MonoBehaviour, IInteractable
         }
     }
 
+    private bool IsPlacementModeActive()
+    {
+        return FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing;
+    }
+
     private void HandleShopItemPickup(PlayerCarry playerCarry, Inventory inventory)
     {
-        // Coba cari Shelf di parent
+        if (TryRemoveFromShelf())
+        {
+            SpawnGhostAndAnimate(playerCarry, inventory, () =>
+            {
+                if (inventory.AddItem(itemData, quantity))
+                    UpdateInventoryUI();
+            });
+        }
+    }
+
+    private void HandleBoxPickup(PlayerCarry playerCarry, Inventory inventory)
+    {
+        SpawnGhostAndAnimate(playerCarry, inventory, () =>
+        {
+            if (inventory.AddBox(itemData, quantity, 1))
+                UpdateInventoryUI();
+        });
+    }
+
+    private bool TryRemoveFromShelf()
+    {
         var shelf = GetComponentInParent<Shelf>();
         if (shelf != null)
         {
@@ -71,72 +95,49 @@ public class PickupItem : MonoBehaviour, IInteractable
             int removed = shelf.RemoveStock(itemData, quantity);
             if (removed <= 0)
             {
-                Debug.LogWarning("Stok di rak sudah habis!");
-                return;
+                Debug.LogWarning("Stock on the shelf is empty!");
+                return false;
             }
         }
-        // 1) sembunyikan / despawn objek asli segera
-        if (!isReleased)
-        {
-            ItemPoolManager.Instance.Despawn(itemData, gameObject);
-            isReleased = true;
-        }       
-        // 2) spawn ghost visual di posisi asli
-        var ghost = Instantiate(itemData.prefab, transform.position, transform.rotation);
-        MakeGhost(ghost);
-
-        PickupMover.AnimateToTarget(ghost, playerCarry.HoldPoint, pickupTweenDuration, () =>
-        {
-            if (inventory.AddItem(itemData, quantity))
-                FindFirstObjectByType<InventoryUI>()?.UpdateUI();
-
-            // despawn real pooled object
-            if (!isReleased)
-            {
-                ItemPoolManager.Instance.Despawn(itemData, gameObject);
-                isReleased = true;
-            }
-        });
-
+        return true;
     }
 
-    private void HandleBoxPickup(PlayerCarry playerCarry, Inventory inventory)
+    private void SpawnGhostAndAnimate(PlayerCarry playerCarry, Inventory inventory, Action onComplete)
     {
-        int remaining = quantity;
-
         if (!isReleased)
         {
-            ItemPoolManager.Instance.Despawn(itemData, gameObject);
-            isReleased = true;
+            DespawnItem();
         }
-        // 2) spawn ghost visual di posisi asli
+
         var ghost = Instantiate(itemData.prefab, transform.position, transform.rotation);
         MakeGhost(ghost);
+
         PickupMover.AnimateToTarget(ghost, playerCarry.HoldPoint, pickupTweenDuration, () =>
         {
-            if (inventory.AddBox(itemData, remaining, 1))
-                    FindFirstObjectByType<InventoryUI>()?.UpdateUI();
-
-            // despawn real pooled object
+            onComplete?.Invoke();
             if (!isReleased)
             {
-                ItemPoolManager.Instance.Despawn(itemData, gameObject);
-                isReleased = true;
+                DespawnItem();
             }
         });
+    }
+
+    private void DespawnItem()
+    {
+        ItemPoolManager.Instance?.Despawn(itemData, gameObject);
+        isReleased = true;
     }
 
     private void MakeGhost(GameObject ghost)
     {
         if (ghost.TryGetComponent<Rigidbody>(out var rb)) rb.isKinematic = true;
-        foreach (var c in ghost.GetComponentsInChildren<Collider>()) c.enabled = false;
-        // disable Outline on ghost
-        if (ghost.TryGetComponent<Outline>(out var o)) o.enabled = false;
+        foreach (var collider in ghost.GetComponentsInChildren<Collider>()) collider.enabled = false;
+        if (ghost.TryGetComponent<Outline>(out var outline)) outline.enabled = false;
     }
 
     public string GetInteractText()
     {
-        return $"Ambil {itemData.itemName} (E)";
+        return $"Pick up {itemData.itemName} (E)";
     }
 
     private bool TryGetPlayerComponents(out PlayerCarry carry, out FurniturePlacer placer, out Inventory inventory)
@@ -145,9 +146,9 @@ public class PickupItem : MonoBehaviour, IInteractable
         placer = GetPlacer();
         inventory = GetInventory();
 
-        if (carry == null) { Debug.LogError("PlayerCarry tidak ditemukan."); return false; }
-        if (placer == null) { Debug.LogError("FurniturePlacer tidak ditemukan."); return false; }
-        if (inventory == null) { Debug.LogError("Inventory tidak ditemukan."); return false; }
+        if (carry == null) { Debug.LogError("PlayerCarry not found."); return false; }
+        if (placer == null) { Debug.LogError("FurniturePlacer not found."); return false; }
+        if (inventory == null) { Debug.LogError("Inventory not found."); return false; }
 
         return true;
     }
@@ -178,6 +179,11 @@ public class PickupItem : MonoBehaviour, IInteractable
         if (cachedInventory == null)
             cachedInventory = GetPlayer()?.GetComponent<Inventory>();
         return cachedInventory;
+    }
+
+    private void UpdateInventoryUI()
+    {
+        FindFirstObjectByType<InventoryUI>()?.UpdateUI();
     }
 
     [RuntimeInitializeOnLoadMethod]

@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace ShopSimulator
@@ -9,26 +8,46 @@ namespace ShopSimulator
     {
         public ItemData item;  // Referensi ke data item
         public int quantity;   // Jumlah item
-        public int interiorCount;
+        public int interiorCount; // Jumlah isi dalam box (jika itemType == Box)
 
         public InventorySlot(ItemData newItem, int qty)
         {
             item = newItem;
             quantity = qty;
-            if(item != null && item.itemType == ItemType.Box)
+
+            if (item != null && item.itemType == ItemType.Box)
             {
-                // Kalau boxQuantities null, inisialisasi sebagai list kosong
-                var list = item.boxQuantities ?? new List<int>();
-                var sum = 0;
-                foreach (var q in list)
-                    sum += q;
-                this.interiorCount = sum;
+                // Hitung interiorCount berdasarkan isi box
+                interiorCount = CalculateInteriorCount(item, qty);
             }
             else
             {
-                // ShopItem atau itemData null
-                this.interiorCount = quantity;
+                // Untuk item biasa atau jika item null
+                interiorCount = qty;
             }
+        }
+
+        public bool CanStack(ItemData newItem, int qtyToAdd)
+        {
+            // Periksa apakah item sama, stackable, dan tidak melebihi batas stack
+            return item != null &&
+                   item == newItem &&
+                   item.isStackable &&
+                   quantity + qtyToAdd <= item.maxStackSize;
+        }
+
+        private int CalculateInteriorCount(ItemData boxItem, int qty)
+        {
+            if (boxItem.boxQuantities == null || boxItem.boxQuantities.Count == 0)
+                return 0;
+
+            int totalInterior = 0;
+            foreach (var count in boxItem.boxQuantities)
+            {
+                totalInterior += count;
+            }
+
+            return totalInterior * qty;
         }
     }
 }

@@ -1,108 +1,166 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using ShopSimulator;
-using Unity.VisualScripting.Antlr3.Runtime.Misc;
 
 [RequireComponent(typeof(Collider))]
 public class Shelf : MonoBehaviour
 {
-    [Header("Child Transforms sebagai slot visual")]
-    public List<Transform> spawnPoints = new();
+    [Header("Child Transforms as visual slots")]
+    [SerializeField] private List<Transform> spawnPoints = new();
 
-    [Header("Kapasitas data per item")]
-    public int capacityPerItem = 20;
+    [Header("Capacity per item")]
+    [SerializeField] private int capacityPerItem = 20;
 
-    // stok data
-    private Dictionary<ItemData, int> stock = new();
+    // Stock data
+    private readonly Dictionary<ItemData, int> stock = new();
 
-    // track slot visual yang terpakai
+    // Tracks occupied visual slots
     private bool[] occupied;
 
     private void Awake()
     {
+        if (spawnPoints == null || spawnPoints.Count == 0)
+        {
+            Debug.LogError("Spawn points are not assigned or empty!");
+            return;
+        }
+
         occupied = new bool[spawnPoints.Count];
     }
-
+    /// <summary>
+    /// Provides read-only access to spawn points.
+    /// </summary>
+    public IReadOnlyList<Transform> SpawnPoints => spawnPoints;
+    /// <summary>
+    /// Gets the current stock quantity of a specific item.
+    /// </summary>
     public int GetStock(ItemData item) =>
-        stock.TryGetValue(item, out var q) ? q : 0;
+        stock.TryGetValue(item, out var quantity) ? quantity : 0;
 
-    public int AddStock(ItemData item, int qty)
+    /// <summary>
+    /// Adds stock for a specific item, respecting the capacity limit.
+    /// </summary>
+    public int AddStock(ItemData item, int quantity)
     {
-        int cur = GetStock(item);
-        int can = Mathf.Min(qty, capacityPerItem - cur);
-        if (can <= 0) return 0;
-        stock[item] = cur + can;
-        return can;
-    }
+        if (item == null) return 0;
 
-    public int RemoveStock(ItemData item, int qty)
-    {
-        if (!stock.TryGetValue(item, out var cur)) return 0;
-        int rem = Mathf.Min(qty, cur);
-        cur -= rem;
-        if (cur <= 0) stock.Remove(item);
-        else stock[item] = cur;
-        return rem;
+        int currentStock = GetStock(item);
+        int canAdd = Mathf.Min(quantity, capacityPerItem - currentStock);
+
+        if (canAdd > 0)
+        {
+            stock[item] = currentStock + canAdd;
+        }
+
+        return canAdd;
     }
 
     /// <summary>
-    /// Tempatkan produk di slot visual pertama yang free.
+    /// Removes stock for a specific item.
     /// </summary>
-    public bool PlacePhysicalItem(GameObject go)
+    public int RemoveStock(ItemData item, int quantity)
     {
+        if (item == null || !stock.TryGetValue(item, out var currentStock)) return 0;
+
+        int toRemove = Mathf.Min(quantity, currentStock);
+        currentStock -= toRemove;
+
+        if (currentStock <= 0)
+        {
+            stock.Remove(item);
+        }
+        else
+        {
+            stock[item] = currentStock;
+        }
+
+        return toRemove;
+    }
+
+    /// <summary>
+    /// Places a physical item in the first available visual slot.
+    /// </summary>
+    public bool PlacePhysicalItem(GameObject item)
+    {
+        if (item == null) return false;
+
         for (int i = 0; i < spawnPoints.Count; i++)
         {
             if (!occupied[i])
             {
                 occupied[i] = true;
-                go.transform.SetParent(spawnPoints[i], false);
-                go.transform.localPosition = Vector3.zero;
-                go.transform.localRotation = Quaternion.identity;
-                if (go.TryGetComponent<Rigidbody>(out var rb))
-                    rb.isKinematic = true;
+                AttachItemToSlot(item, spawnPoints[i]);
                 return true;
             }
         }
+
+        Debug.LogWarning("No free slots available to place the item.");
         return false;
     }
 
     /// <summary>
-    /// Lepaskan produk dari slot visual, free slot‑nya kembali.
+    /// Removes a physical item from its visual slot and frees the slot.
     /// </summary>
-    public bool RemovePhysicalItem(GameObject go)
+    public bool RemovePhysicalItem(GameObject item)
     {
-        var parent = go.transform.parent;
-        int idx = spawnPoints.IndexOf(parent);
-        if (idx >= 0 && occupied[idx])
+        if (item == null) return false;
+
+        Transform parent = item.transform.parent;
+        int index = spawnPoints.IndexOf(parent);
+
+        if (index >= 0 && occupied[index])
         {
-            occupied[idx] = false;
-            go.transform.SetParent(null);
-            if (go.TryGetComponent<Rigidbody>(out var rb))
-                rb.isKinematic = false;
+            occupied[index] = false;
+            DetachItemFromSlot(item);
             return true;
         }
+
+        Debug.LogWarning("Item is not in a valid slot.");
         return false;
     }
 
     /// <summary>
-    /// Kembalikan indeks spawnPoints pertama yang FREE, atau -1 kalau penuh.
+    /// Gets the index of the first free slot, or -1 if all slots are occupied.
     /// </summary>
     public int GetNextFreeSlotIndex()
     {
         for (int i = 0; i < occupied.Length; i++)
-            if (!occupied[i]) return i;
-        return -1;
-    }
-    public bool HasEmptySlot()
-    {
-        foreach (var slot in occupied)
         {
-            if (slot == false)
-            {
-                return true; // ketemu slot kosong
-            }
+            if (!occupied[i]) return i;
         }
-        return false; // tidak ada slot kosong
+
+        return -1; // No free slots
     }
 
+    /// <summary>
+    /// Checks if there is at least one empty slot available.
+    /// </summary>
+    public bool HasEmptySlot() => System.Array.Exists(occupied, slot => !slot);
+
+    /// <summary>
+    /// Attaches an item to a specific slot.
+    /// </summary>
+    private void AttachItemToSlot(GameObject item, Transform slot)
+    {
+        item.transform.SetParent(slot, false);
+        item.transform.localPosition = Vector3.zero;
+        item.transform.localRotation = Quaternion.identity;
+
+        if (item.TryGetComponent<Rigidbody>(out var rb))
+        {
+            rb.isKinematic = true;
+        }
+    }
+
+    /// <summary>
+    /// Detaches an item from its slot.
+    /// </summary>
+    private void DetachItemFromSlot(GameObject item)
+    {
+        item.transform.SetParent(null);
+
+        if (item.TryGetComponent<Rigidbody>(out var rb))
+        {
+            rb.isKinematic = false;
+        }
+    }
 }

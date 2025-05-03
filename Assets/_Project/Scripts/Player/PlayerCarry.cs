@@ -10,16 +10,13 @@ public class PlayerCarry : MonoBehaviour
     [SerializeField] private Camera cam;
 
     [Header("Bobbing Effect Settings")]
-    [Tooltip("Kecepatan dasar bobbing (bila player bergerak)")]
+    [Tooltip("Base speed of bobbing when the player is moving.")]
     [SerializeField] private float baseBobbingSpeed = 6f;
-    [Tooltip("Besaran offset bobbing")]
+    [Tooltip("Amplitude of the bobbing effect.")]
     [SerializeField] private float baseBobbingAmount = 0.05f;
 
-    // Timer untuk menghitung gelombang bobbing
     private float bobbingTimer = 0f;
-    // Simpan posisi default holdPoint atau posisi awal item di holdPoint
     private Vector3 defaultHoldLocalPosition;
-
     private GameObject carriedItem;
     private FurniturePlacer furniturePlacer;
     private PlayerMovement playerMovement;
@@ -27,133 +24,104 @@ public class PlayerCarry : MonoBehaviour
 
     public bool IsCarrying => carriedItem != null;
     public Transform HoldPoint => holdPoint;
-
     public GameObject HeldItem => carriedItem;
 
     private void Awake()
     {
-        if (holdPoint == null)
-        {
-            Debug.LogWarning("HoldPoint belum di-assign di Inspector. Membuat default.");
-            holdPoint = new GameObject("DefaultHoldPoint").transform;
-            holdPoint.SetParent(transform);
-            holdPoint.localPosition = new Vector3(0, 1.5f, 1);
-        }
-        defaultHoldLocalPosition = holdPoint.localPosition;
-
-        if (cam == null)
-        {
-            cam = Camera.main;
-            if (cam == null)
-                Debug.LogError("Kamera tidak ditemukan. Pastikan memiliki MainCamera di scene.");
-        }
-
+        InitializeHoldPoint();
+        InitializeCamera();
         furniturePlacer = GetComponent<FurniturePlacer>();
         playerMovement = GetComponent<PlayerMovement>();
 
-        if (playerMovement == null)
-            Debug.LogError("PlayerMovement tidak ditemukan.");
-        if (furniturePlacer == null)
-            Debug.LogError("FurniturePlacer tidak ditemukan.");
+        Debug.Assert(furniturePlacer != null, "FurniturePlacer component is missing.");
+        Debug.Assert(playerMovement != null, "PlayerMovement component is missing.");
     }
 
     private void Update()
     {
-        if (IsCarrying && carriedItem != null)
+        if (IsCarrying)
         {
-            if (playerMovement != null && playerMovement.IsMoving)
-            {
-                // Hitung offset bobbing
-                float speedFactor = playerMovement.currentSpeed / playerMovement.runSpeed;
-                bobbingTimer += baseBobbingSpeed * speedFactor * Time.deltaTime;
-                if (bobbingTimer > Mathf.PI * 2f)
-                    bobbingTimer -= Mathf.PI * 2f;
-
-                float offsetY = Mathf.Sin(bobbingTimer) * baseBobbingAmount;
-
-                // Perbarui offset
-                bobbingOffset = new Vector3(0, offsetY, 0);
-            }
-            else
-            {
-                // Smoothly kembalikan ke posisi nol saat berhenti
-                bobbingOffset = Vector3.Lerp(bobbingOffset, Vector3.zero, Time.deltaTime * 8f);
-            }
-
-            // Terapkan offset ke posisi local
-            carriedItem.transform.localPosition = bobbingOffset;
+            ApplyBobbingEffect();
         }
     }
 
+    /// <summary>
+    /// Picks up the specified item and attaches it to the hold point.
+    /// </summary>
+    /// <param name="item">The item to pick up.</param>
     public void PickUp(GameObject item)
     {
         if (item == null)
         {
-            Debug.LogWarning("Item null saat mencoba pickup.");
+            Debug.LogWarning("Attempted to pick up a null item.");
             return;
         }
 
         if (IsCarrying)
+        {
             Drop();
+        }
 
         carriedItem = item;
+        AttachToHoldPoint(carriedItem);
 
-        // Parenting dan posisi
-        carriedItem.transform.SetParent(holdPoint);
-        carriedItem.transform.localPosition = Vector3.zero;
-        carriedItem.transform.localRotation = Quaternion.identity;
-
-        // Matikan physics
         if (carriedItem.TryGetComponent<Rigidbody>(out var rb))
+        {
             rb.isKinematic = true;
+        }
     }
 
-    public void Drop(bool removeFromInventory = true)  
+    /// <summary>
+    /// Drops the currently held item.
+    /// </summary>
+    /// <param name="removeFromInventory">Whether to remove the item from the inventory.</param>
+    public void Drop(bool removeFromInventory = true)
     {
         if (!IsCarrying) return;
 
-        // Ambil komponen Inventory dari player
         if (removeFromInventory && carriedItem.TryGetComponent<PickupItem>(out var pickup))
         {
-            var inv = GetComponent<Inventory>();
-            if (inv != null)
-            {
-                inv.RemoveItem(pickup.itemData, 1);
-                FindFirstObjectByType<InventoryUI>()?.UpdateUI();
-            }
+            var inventory = GetComponent<Inventory>();
+            inventory?.RemoveItem(pickup.itemData, 1);
+            FindFirstObjectByType<InventoryUI>()?.UpdateUI();
         }
 
-        carriedItem.transform.SetParent(null);
-        carriedItem.transform.position = holdPoint.position;
+        DetachFromHoldPoint(carriedItem);
 
         if (carriedItem.TryGetComponent<Rigidbody>(out var rb))
+        {
             rb.isKinematic = false;
+        }
 
         carriedItem = null;
     }
 
+    /// <summary>
+    /// Begins the placement process for the currently held item.
+    /// </summary>
     public void BeginPlacementFromHand()
     {
         if (!IsCarrying) return;
 
         if (!carriedItem.TryGetComponent<PickupItem>(out var pickupItem) || pickupItem.itemData == null)
         {
-            Debug.LogWarning("Item tidak memiliki PickupItem atau itemData.");
+            Debug.LogWarning("Held item is missing PickupItem or itemData.");
             return;
         }
 
         if (pickupItem.itemData.itemType != ItemType.Furniture)
         {
-            Debug.Log("Item bukan Furniture, tidak bisa dipasang.");
+            Debug.Log("Held item is not furniture and cannot be placed.");
             return;
         }
 
-        carriedItem.transform.SetParent(null); // lepas dari holdPoint
+        DetachFromHoldPoint(carriedItem);
         furniturePlacer.BeginPlacement(pickupItem.itemData, carriedItem);
         carriedItem = null;
     }
+
     /// <summary>
-    /// Mengosongkan referensi carriedItem tanpa mengubah status GameObject (misalnya bila hanya di-hide).
+    /// Clears the reference to the currently held item without modifying its state.
     /// </summary>
     public void ClearCarriedItem()
     {
@@ -161,10 +129,68 @@ public class PlayerCarry : MonoBehaviour
     }
 
     /// <summary>
-    /// Mengatur carriedItem secara manual tanpa memanggil Drop() (misalnya saat item di-show kembali).
+    /// Manually sets the carried item without invoking Drop().
     /// </summary>
+    /// <param name="item">The item to set as carried.</param>
     public void SetCarriedItem(GameObject item)
     {
         carriedItem = item;
+    }
+
+    private void InitializeHoldPoint()
+    {
+        if (holdPoint == null)
+        {
+            Debug.LogWarning("HoldPoint is not assigned. Creating a default hold point.");
+            holdPoint = new GameObject("DefaultHoldPoint").transform;
+            holdPoint.SetParent(transform);
+            holdPoint.localPosition = new Vector3(0, 1.5f, 1);
+        }
+        defaultHoldLocalPosition = holdPoint.localPosition;
+    }
+
+    private void InitializeCamera()
+    {
+        if (cam == null)
+        {
+            cam = Camera.main;
+            if (cam == null)
+            {
+                Debug.LogError("MainCamera is not found in the scene.");
+            }
+        }
+    }
+
+    private void ApplyBobbingEffect()
+    {
+        if (playerMovement != null && playerMovement.IsMoving)
+        {
+            float speedFactor = playerMovement.CurrentSpeed / playerMovement.runSpeed;
+            bobbingTimer = Mathf.Repeat(bobbingTimer + baseBobbingSpeed * speedFactor * Time.deltaTime, Mathf.PI * 2f);
+            float offsetY = Mathf.Sin(bobbingTimer) * baseBobbingAmount;
+            bobbingOffset = new Vector3(0, offsetY, 0);
+        }
+        else
+        {
+            bobbingOffset = Vector3.Lerp(bobbingOffset, Vector3.zero, Time.deltaTime * 8f);
+        }
+
+        if (carriedItem != null)
+        {
+            carriedItem.transform.localPosition = bobbingOffset;
+        }
+    }
+
+    private void AttachToHoldPoint(GameObject item)
+    {
+        item.transform.SetParent(holdPoint);
+        item.transform.localPosition = Vector3.zero;
+        item.transform.localRotation = Quaternion.identity;
+    }
+
+    private void DetachFromHoldPoint(GameObject item)
+    {
+        item.transform.SetParent(null);
+        item.transform.position = holdPoint.position;
     }
 }

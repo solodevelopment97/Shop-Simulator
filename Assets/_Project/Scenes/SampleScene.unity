@@ -634,7 +634,6 @@ MonoBehaviour:
   staminaSystem: {fileID: 720634508}
   movementsDebug: {fileID: 309186049}
   enableDebugLogs: 0
-  currentSpeed: 0
 --- !u!114 &720634507
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -715,10 +714,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactRange: 5
   cameraTransform: {fileID: 1445324470}
-  interactHintText: {fileID: 2118182606}
+  uiHintManager: {fileID: 2118182608}
   storeKey: 114
   interactKey: 101
   dropKey: 103
+  pickupFurnitureKey: 102
   storeHoldThreshold: 0.5
   storeInterval: 0.5
   shelfMask:
@@ -773,8 +773,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32cb1d73a8078ec40a28f60e1f2513f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxSlots: 7
-  slots: []
 --- !u!114 &720634513
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2170,8 +2168,9 @@ GameObject:
   - component: {fileID: 2118182605}
   - component: {fileID: 2118182607}
   - component: {fileID: 2118182606}
+  - component: {fileID: 2118182608}
   m_Layer: 5
-  m_Name: Interact
+  m_Name: UIHint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2295,6 +2294,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2118182604}
   m_CullTransparentMesh: 1
+--- !u!114 &2118182608
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2118182604}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d4f4a861c9fd8c439b60226fdb9b545, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hintText: {fileID: 2118182606}
 --- !u!1 &2121806434
 GameObject:
   m_ObjectHideFlags: 0

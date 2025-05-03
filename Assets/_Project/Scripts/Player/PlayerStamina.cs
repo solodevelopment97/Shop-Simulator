@@ -15,23 +15,49 @@ public class PlayerStamina : MonoBehaviour
     [SerializeField] private Image fillArea;
     [SerializeField] private Gradient staminaGradient;
     [SerializeField] private float uiHideDelay = 3f;
-    
+
     [Header("UI Animation References")]
-    public Animator staminaAnimator;
-    
-    public float currentStamina => _currentStamina;
+    [SerializeField] private Animator staminaAnimator;
+
     private float _currentStamina;
     private float regenTimer;
     private float uiHideTimer;
     private PlayerMovement playerMovement;
-    private bool isUsingStamina;
+
+    public float CurrentStamina => _currentStamina;
 
     private void Awake()
     {
-        playerMovement = GetComponent<PlayerMovement>();
-        _currentStamina = maxStamina;
-        staminaSlider.gameObject.SetActive(false); // Hide the slider initially
+        InitializeComponents();
         InitializeUI();
+    }
+
+    private void Update()
+    {
+        HandleStamina();
+        HandleUIVisibility();
+    }
+
+    private void InitializeComponents()
+    {
+        playerMovement = GetComponent<PlayerMovement>();
+        if (playerMovement == null)
+        {
+            Debug.LogError("PlayerMovement component is missing on PlayerStamina.");
+            enabled = false;
+            return;
+        }
+
+        _currentStamina = maxStamina;
+
+        if (staminaSlider != null)
+        {
+            staminaSlider.gameObject.SetActive(false); // Hide the slider initially
+        }
+        else
+        {
+            Debug.LogWarning("StaminaSlider is not assigned in PlayerStamina.");
+        }
     }
 
     private void InitializeUI()
@@ -44,46 +70,48 @@ public class PlayerStamina : MonoBehaviour
         }
     }
 
-    private void Update()
-    {
-        HandleStamina();
-        HandleUIVisibility();
-    }
-
     private void HandleStamina()
     {
-        HandleUIAnimation();
-
         if (playerMovement.IsRunning && playerMovement.IsMoving)
         {
-            _currentStamina -= runCostPerSecond * Time.deltaTime;
-            regenTimer = 0f;
-            uiHideTimer = 0f;
-
-            if (currentStamina <= 0)
-            {
-                _currentStamina = 0;
-                playerMovement.ToggleRun(false);
-            }
+            ConsumeStamina();
         }
-        // Regenerasi stamina
-        else if (currentStamina < maxStamina)
+        else if (_currentStamina < maxStamina)
         {
-            regenTimer += Time.deltaTime;
-
-            if (regenTimer >= delayBeforeRegen)
-            {
-                float regenRate = playerMovement.IsMoving ? walkRegenRate : idleRegenRate;
-                _currentStamina += regenRate * Time.deltaTime;
-            }
+            RegenerateStamina();
         }
 
         _currentStamina = Mathf.Clamp(_currentStamina, 0, maxStamina);
         UpdateStaminaUI();
     }
 
+    private void ConsumeStamina()
+    {
+        _currentStamina -= runCostPerSecond * Time.deltaTime;
+        regenTimer = 0f;
+        uiHideTimer = 0f;
+
+        if (_currentStamina <= 0)
+        {
+            _currentStamina = 0;
+            playerMovement.ToggleRun(false);
+        }
+    }
+
+    private void RegenerateStamina()
+    {
+        regenTimer += Time.deltaTime;
+
+        if (regenTimer >= delayBeforeRegen)
+        {
+            float regenRate = playerMovement.IsMoving ? walkRegenRate : idleRegenRate;
+            _currentStamina += regenRate * Time.deltaTime;
+        }
+    }
+
     private void UpdateStaminaUI()
     {
+        HandleUIAnimation();
         if (staminaSlider != null)
         {
             staminaSlider.value = _currentStamina;
@@ -104,10 +132,12 @@ public class PlayerStamina : MonoBehaviour
     {
         if (staminaSlider == null) return;
 
-        bool shouldShow = playerMovement.IsRunning || _currentStamina < maxStamina || uiHideTimer < uiHideDelay;
+        // Ensure slider is visible when needed
+        bool shouldShow = playerMovement.IsRunning || _currentStamina < maxStamina || playerMovement.IsMoving || uiHideTimer < uiHideDelay;
         staminaSlider.gameObject.SetActive(shouldShow);
 
-        if (!playerMovement.IsRunning && _currentStamina >= maxStamina)
+        // Update uiHideTimer
+        if (!playerMovement.IsRunning && _currentStamina >= maxStamina && !playerMovement.IsMoving)
         {
             uiHideTimer += Time.deltaTime;
         }
@@ -117,15 +147,11 @@ public class PlayerStamina : MonoBehaviour
         }
     }
 
-    void HandleUIAnimation()
+    private void HandleUIAnimation()
     {
-        if (currentStamina < maxStamina)
+        if (staminaAnimator != null)
         {
-            staminaAnimator.SetBool("Show", true);
-        }
-        else
-        {
-            staminaAnimator.SetBool("Show", false);
+            staminaAnimator.SetBool("Show", _currentStamina < maxStamina);
         }
     }
 

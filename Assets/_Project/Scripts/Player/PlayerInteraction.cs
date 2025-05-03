@@ -11,190 +11,267 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private Transform cameraTransform;
 
     [Header("UI Settings")]
-    [SerializeField] private TextMeshProUGUI interactHintText;
+    [SerializeField] private UIHintManager uiHintManager;
 
     [Header("Key Settings")]
     [SerializeField] private KeyCode storeKey = KeyCode.R;
-    [SerializeField] private KeyCode interactKey = KeyCode.E;
+    [SerializeField] private KeyCode interactKey = KeyCode.E; // Tetap untuk item pickup
     [SerializeField] private KeyCode dropKey = KeyCode.G;
+    [SerializeField] private KeyCode pickupFurnitureKey = KeyCode.F; // KeyCode untuk furniture pickup
 
     [Header("Bulk Store Settings")]
     [SerializeField] private float storeHoldThreshold = 0.5f;
     [SerializeField] private float storeInterval = 0.2f;
 
     [Header("LayerMasks")]
-    public LayerMask shelfMask;
-    public LayerMask pickupMask;
+    [SerializeField] private LayerMask shelfMask;
+    [SerializeField] private LayerMask pickupMask;
 
     private PlayerCarry playerCarry;
     private RaycastHit lastHit;
 
-    // state for bulk store
-    private bool rHeld = false;
-    private bool bulkStoreMode = false;
-    private float rHoldStart = 0f;
+    // Bulk store state
+    private bool isStoreKeyHeld = false;
+    private bool isBulkStoreMode = false;
+    private float storeKeyHoldStartTime = 0f;
     private float lastStoreTime = 0f;
 
     private void Awake()
     {
         playerCarry = GetComponent<PlayerCarry>();
-        if (cameraTransform == null && Camera.main != null)
-            cameraTransform = Camera.main.transform;
-
-        if (interactHintText != null)
-            interactHintText.enabled = false;
+        cameraTransform ??= Camera.main?.transform;
     }
 
     private void Update()
     {
-        HandleDrop();
-        HandleStoreInput();
-        HandlePickupOrPlace();
+        HandleInput();
         UpdateInteractHintUI();
     }
 
-    private void HandleDrop()
+    private void HandleInput()
+    {
+        HandleDropInput();
+        HandleStoreInput();
+        HandlePickupItemInput(); // Tetap untuk item pickup
+        HandlePickupFurnitureInput(); // Tambahkan handler untuk furniture pickup
+    }
+
+    private void HandleDropInput()
     {
         if (Input.GetKeyDown(dropKey) && playerCarry.IsCarrying)
+        {
             playerCarry.Drop();
+        }
     }
 
     private void HandleStoreInput()
     {
-        // detect hold vs tap
         if (Input.GetKeyDown(storeKey))
         {
-            rHeld = true;
-            bulkStoreMode = false;
-            rHoldStart = Time.time;
+            isStoreKeyHeld = true;
+            isBulkStoreMode = false;
+            storeKeyHoldStartTime = Time.time;
             lastStoreTime = Time.time - storeInterval;
         }
 
-        if (rHeld && !bulkStoreMode && Time.time - rHoldStart >= storeHoldThreshold)
+        if (isStoreKeyHeld && !isBulkStoreMode && Time.time - storeKeyHoldStartTime >= storeHoldThreshold)
         {
-            bulkStoreMode = true;
-            rHeld = false;
+            isBulkStoreMode = true;
+            isStoreKeyHeld = false;
         }
 
         if (Input.GetKeyUp(storeKey))
         {
-            rHeld = false;
-            bulkStoreMode = false;
+            isStoreKeyHeld = false;
+            isBulkStoreMode = false;
         }
 
-        // on tap
         if (Input.GetKeyDown(storeKey))
-            StoreOnce();
-
-        // on hold
-        if (bulkStoreMode && Input.GetKey(storeKey))
         {
-            if (Time.time - lastStoreTime >= storeInterval)
-            {
-                StoreOnce();
-                lastStoreTime = Time.time;
-            }
+            StoreItem();
+        }
+
+        if (isBulkStoreMode && Input.GetKey(storeKey) && Time.time - lastStoreTime >= storeInterval)
+        {
+            StoreItem();
+            lastStoreTime = Time.time;
         }
     }
 
-    private void StoreOnce()
+    private void StoreItem()
     {
-        // raycast hanya ke layer rak
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask))
         {
             var shelf = hit.collider.GetComponentInParent<ShelfInteractable>();
             if (shelf != null && playerCarry.IsCarrying && shelf.CanStoreItem())
             {
-                shelf.Interact();  // meletakkan 1 unit atau unpack box
+                shelf.Interact();
                 return;
             }
         }
-        Debug.Log("Arahkan ke rak untuk menyimpan barang.");
+        Debug.Log("Point at a shelf to store the item.");
     }
 
-    private void HandlePickupOrPlace()
+    private void HandlePickupItemInput()
     {
-        if (!Input.GetKeyDown(interactKey))
-            return;
+        if (!Input.GetKeyDown(interactKey)) return;
 
-        // 1) pickup item/box
-        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitPi, interactRange, pickupMask))
+        if (TryPickupItem())
         {
-            if (hitPi.collider.TryGetComponent<PickupItem>(out var pick))
+            Debug.Log("Item picked up.");
+        }
+        else
+        {
+            Debug.Log("No item to pick up.");
+        }
+    }
+
+    private void HandlePickupFurnitureInput()
+    {
+        if (!Input.GetKeyDown(pickupFurnitureKey)) return;
+
+        if (TryPickupFurniture())
+        {
+            Debug.Log("Furniture picked up.");
+        }
+        else
+        {
+            Debug.Log("No furniture to pick up.");
+        }
+    }
+
+    private bool TryPickupItem()
+    {
+        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, pickupMask))
+        {
+            if (hit.collider.TryGetComponent<PickupItem>(out var pickupItem))
             {
-                pick.Interact();
-                return;
+                pickupItem.Interact();
+                return true;
             }
         }
+        return false;
+    }
 
-        // 2) place furniture
-        if (!playerCarry.IsCarrying)
+    private bool TryPickupFurniture()
+    {
+        if(playerCarry.IsCarrying) return false;
+
+        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask | pickupMask))
         {
-            // raycast any interactable furniture
-            if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitF, interactRange, shelfMask | pickupMask))
+            var furniture = hit.collider.GetComponentInParent<InteractableFurniture>();
+            if (furniture != null)
             {
-                var furn = hitF.collider.GetComponentInParent<InteractableFurniture>();
-                if (furn != null)
-                {
-                    furn.Interact();
-                    return;
-                }
+                furniture.Interact();
+                return true;
             }
         }
-
-        Debug.Log("Tidak ada objek untuk di-interaksi.");
+        return false;
     }
 
     private void UpdateInteractHintUI()
     {
-        if (interactHintText == null) return;
+        if (uiHintManager == null) return;
 
-        bool show = false;
-        string text = "";
+        // Bersihkan semua hint sebelum memperbarui
+        uiHintManager.ClearAllHints();
 
-        // hint STORE
+        // Hint untuk item yang sedang dibawa
         if (playerCarry.IsCarrying)
         {
-            var pu = playerCarry.HeldItem.GetComponent<PickupItem>();
-            if (pu != null && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hs, interactRange, shelfMask))
+            var heldItem = playerCarry.HeldItem?.GetComponent<PickupItem>();
+            if (heldItem != null)
             {
-                if (pu.itemData.itemType == ItemType.Box)
-                    text = bulkStoreMode ? $"Hold R: Bulk unpack {pu.itemData.itemName}"
-                                         : $"[R] Unpack 1x dari {pu.itemData.itemName}";
-                else
-                    text = bulkStoreMode ? $"Hold R: Bulk letakkan {pu.itemData.itemName}"
-                                         : $"[R] Letakkan 1x {pu.itemData.itemName}";
-                show = true;
+                uiHintManager.SetHint("Drop", $"[G] Drop {heldItem.itemData.itemName}");
             }
         }
 
-        // hint PICKUP
-        if (!show && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hp, interactRange, pickupMask))
+        // Hint untuk menyimpan item
+        if (playerCarry.IsCarrying && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask))
         {
-            if (hp.collider.TryGetComponent<PickupItem>(out var pickable))
+            var shelf = hit.collider.GetComponentInParent<ShelfInteractable>();
+            if (shelf != null && shelf.CanStoreItem())
             {
-                text = pickable.itemData.itemType == ItemType.Box
-                    ? "[E] Ambil Box"
-                    : $"[E] Ambil {pickable.itemData.itemName}";
-                show = true;
-            }
-        }
-
-        // hint PLACE furniture
-        if (!show && !playerCarry.IsCarrying)
-        {
-            if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hf, interactRange, shelfMask | pickupMask))
-            {
-                var furn = hf.collider.GetComponentInParent<InteractableFurniture>();
-                if (furn != null)
+                var heldItem = playerCarry.HeldItem?.GetComponent<PickupItem>();
+                if (heldItem != null)
                 {
-                    text = $"[E] {furn.GetInteractText()}";
-                    show = true;
+                    uiHintManager.SetHint("Store", GetStoreHintText(heldItem));
                 }
             }
         }
 
-        interactHintText.text = text;
-        interactHintText.enabled = show;
+        // Hint untuk mengambil item
+        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitPickup, interactRange, pickupMask))
+        {
+            if (hitPickup.collider.TryGetComponent<PickupItem>(out var pickupItem))
+            {
+                uiHintManager.SetHint("Pickup", GetPickupHintText(pickupItem));
+            }
+        }
+
+        // Hint untuk mengambil furniture
+        if (!playerCarry.IsCarrying && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitFurniture, interactRange, shelfMask | pickupMask))
+        {
+            var furniture = hitFurniture.collider.GetComponentInParent<InteractableFurniture>();
+            if (furniture != null)
+            {
+                uiHintManager.SetHint("Furniture", $"[F] {furniture.GetInteractText()}");
+            }
+        }
+    }
+
+
+    private string GetInteractHintText()
+    {
+        if (playerCarry.IsCarrying)
+        {
+            var heldItem = playerCarry.HeldItem?.GetComponent<PickupItem>();
+            if (heldItem != null && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask))
+            {
+                return GetStoreHintText(heldItem);
+            }
+        }
+
+        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitPickup, interactRange, pickupMask))
+        {
+            if (hitPickup.collider.TryGetComponent<PickupItem>(out var pickupItem))
+            {
+                return GetPickupHintText(pickupItem);
+            }
+        }
+
+        if (!playerCarry.IsCarrying && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitFurniture, interactRange, shelfMask | pickupMask))
+        {
+            var furniture = hitFurniture.collider.GetComponentInParent<InteractableFurniture>();
+            if (furniture != null)
+            {
+                return $"[F] {furniture.GetInteractText()}";
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private string GetStoreHintText(PickupItem heldItem)
+    {
+        if (heldItem.itemData.itemType == ItemType.Box)
+        {
+            return isBulkStoreMode
+                ? $"Hold R: Bulk unpack {heldItem.itemData.itemName}"
+                : $"[R] Unpack 1x {heldItem.itemData.itemName}";
+        }
+        else
+        {
+            return isBulkStoreMode
+                ? $"Hold R: Bulk store {heldItem.itemData.itemName}"
+                : $"[R] Store 1x {heldItem.itemData.itemName}";
+        }
+    }
+
+    private string GetPickupHintText(PickupItem pickupItem)
+    {
+        return pickupItem.itemData.itemType == ItemType.Box
+            ? "[E] Pick up Box"
+            : $"[E] Pick up {pickupItem.itemData.itemName}";
     }
 }
