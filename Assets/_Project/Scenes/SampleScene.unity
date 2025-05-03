@@ -603,7 +603,7 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Height: 2
+  m_Height: 2.48
   m_Radius: 0.5
   m_SlopeLimit: 45
   m_StepOffset: 0.3
@@ -626,11 +626,12 @@ MonoBehaviour:
   runSpeed: 10
   acceleration: 10
   deceleration: 15
-  gravity: -9.81
-  groundCheckDistance: 0.4
+  gravity: -20
+  groundCheckDistance: 1.35
   groundMask:
     serializedVersion: 2
     m_Bits: 128
+  jumpHeight: 1.5
   staminaSystem: {fileID: 720634508}
   movementsDebug: {fileID: 309186049}
   enableDebugLogs: 0
@@ -1650,7 +1651,7 @@ Transform:
   m_GameObject: {fileID: 1445324469}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.67, z: 0}
+  m_LocalPosition: {x: 0, y: 0.956, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1834,7 +1835,7 @@ MonoBehaviour:
   walkingBobbingSpeed: 14
   runningBobbingSpeed: 18
   bobbingAmount: 0.05
-  midpoint: 1.7
+  midpoint: 0.5
 --- !u!1 &1460814354
 GameObject:
   m_ObjectHideFlags: 0
