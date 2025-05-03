@@ -1,58 +1,79 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using ShopSimulator; // Sesuaikan namespace dengan project Anda
 using TMPro;
 
-public class InventoryUI : MonoBehaviour
+namespace ShopSimulator
 {
-    [Header("UI References")]
-    [Tooltip("Prefab untuk Inventory Slot UI")]
-    [SerializeField] private GameObject slotPrefab;
-    [Tooltip("Parent transform untuk meletakkan slot UI (misalnya panel bottom bar)")]
-    [SerializeField] private Transform slotParent;
-
-    private Inventory inventory;
-
-    private void Start()
+    public class InventoryUI : MonoBehaviour
     {
-        // Ambil referensi ke Inventory; misalnya, jika Inventory ada pada player
-        inventory = FindFirstObjectByType<Inventory>();
-        if (inventory == null)
-        {
-            Debug.LogError("Inventory tidak ditemukan di scene!");
-            return;
-        }
-        UpdateUI();
-    }
+        [Header("UI References")]
+        [Tooltip("Prefab for Inventory Slot UI")]
+        [SerializeField] private GameObject slotPrefab;
+        [Tooltip("Parent transform for placing slot UI (e.g., bottom bar panel)")]
+        [SerializeField] private Transform slotParent;
 
-    /// <summary>
-    /// Update tampilan UI inventory sesuai dengan data pada Inventory.
-    /// Selalu membuat UI slot sebanyak inventory.maxSlots, dan mengatur slot kosong jika belum ada item.
-    /// </summary>
-    public void UpdateUI()
-    {
-        // Hapus semua slot UI lama
-        foreach (Transform child in slotParent)
-        {
-            Destroy(child.gameObject);
-        }
+        private Inventory inventory;
+        private readonly List<GameObject> slotPool = new();
 
-        // Loop untuk membuat slot UI sebanyak maxSlots
-        for (int i = 0; i < inventory.maxSlots; i++)
+        private void Start()
         {
-            GameObject slotInstance = Instantiate(slotPrefab, slotParent);
-            InventorySlotUI slotUI = slotInstance.GetComponent<InventorySlotUI>();
-
-            // Jika indeks kurang dari jumlah slot terisi di inventory, tampilkan data slotnya.
-            // Jika tidak, tampilkan slot kosong.
-            if (i < inventory.slots.Count)
+            // Get reference to Inventory; e.g., if Inventory is on the player
+            inventory = FindFirstObjectByType<Inventory>();
+            if (inventory == null)
             {
-                slotUI.Setup(inventory.slots[i]);
+                Debug.LogError("Inventory not found in the scene!");
+                return;
             }
-            else
+
+            InitializeSlotPool();
+            UpdateUI();
+        }
+
+        /// <summary>
+        /// Initializes the object pool for inventory slots.
+        /// </summary>
+        private void InitializeSlotPool()
+        {
+            if (slotPrefab == null || slotParent == null)
             {
-                slotUI.Setup(null);
+                Debug.LogError("SlotPrefab or SlotParent is not assigned!");
+                return;
+            }
+
+            for (int i = 0; i < inventory.MaxSlots; i++)
+            {
+                GameObject slotInstance = Instantiate(slotPrefab, slotParent);
+                slotInstance.SetActive(false);
+                slotPool.Add(slotInstance);
+            }
+        }
+
+        /// <summary>
+        /// Updates the inventory UI to reflect the current state of the inventory.
+        /// </summary>
+        public void UpdateUI()
+        {
+            if (inventory == null || slotPool.Count == 0)
+                return;
+
+            int slotCount = inventory.Slots.Count;
+
+            for (int i = 0; i < slotPool.Count; i++)
+            {
+                GameObject slotInstance = slotPool[i];
+                InventorySlotUI slotUI = slotInstance.GetComponent<InventorySlotUI>();
+
+                if (i < slotCount)
+                {
+                    slotUI.Setup(inventory.Slots[i]);
+                    slotInstance.SetActive(true);
+                }
+                else
+                {
+                    slotUI.Setup(null);
+                    slotInstance.SetActive(false);
+                }
             }
         }
     }

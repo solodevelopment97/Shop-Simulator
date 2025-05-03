@@ -3,108 +3,127 @@
 public class ShelfPreviewController : MonoBehaviour
 {
     public Material wireframeMaterial;
-    public LayerMask shelfMask;   // assign di Inspector ke layer “Shelf”
-    public LayerMask pickupMask;  // assign di Inspector ke layer “Pickup”
+    public LayerMask shelfMask;
+    public LayerMask pickupMask;
 
-    private Transform camT;
+    private Transform cameraTransform;
     private IPreviewable currentTarget;
     private GameObject previewInstance;
     private GameObject lastPrefab;
+    private int combinedLayerMask;
 
     private void Awake()
     {
-        camT = Camera.main.transform;
+        cameraTransform = Camera.main?.transform;
+        if (cameraTransform == null)
+        {
+            Debug.LogError("Main Camera not found!");
+        }
+        combinedLayerMask = shelfMask | pickupMask;
     }
 
     private void Update()
     {
-        // RaycastAll mencakup kedua layer
-        int bothMasks = shelfMask | pickupMask;
-        Ray ray = new Ray(camT.position, camT.forward);
-        var hits = Physics.RaycastAll(ray, 5f, bothMasks);
+        if (cameraTransform == null) return;
+
+        Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
+        var hits = Physics.RaycastAll(ray, 5f, combinedLayerMask);
+
         if (hits.Length == 0)
         {
-            HidePreview();
-            currentTarget = null;
-            lastPrefab = null;
+            ResetPreview();
             return;
         }
 
-        // urutkan berdasarkan jarak
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
-        bool didShelf = false;
         foreach (var hit in hits)
         {
-            // 1) kalau ini ItemShop/Box → langsung hide & keluar
-            if ((pickupMask & (1 << hit.collider.gameObject.layer)) != 0)
+            if (IsPickupLayer(hit.collider.gameObject.layer))
             {
-                HidePreview();
-                currentTarget = null;
-                lastPrefab = null;
+                ResetPreview();
                 return;
             }
 
-            // 2) kalau ini rak (IPreviewable) → tampilkan preview
-            if ((shelfMask & (1 << hit.collider.gameObject.layer)) != 0)
+            if (IsShelfLayer(hit.collider.gameObject.layer))
             {
-                var prev = hit.collider.GetComponentInParent<IPreviewable>();
-                if (prev != null)
-                {
-                    var prefab = prev.GetPreviewPrefab();
-                    var tfOpt = prev.GetPreviewTransform();
-                    if (prefab != null && tfOpt.HasValue)
-                    {
-                        ShowOrUpdate(prefab, tfOpt.Value.position, tfOpt.Value.rotation, prev);
-                        didShelf = true;
-                        break;
-                    }
-                }
+                HandleShelfHit(hit);
+                return;
             }
         }
 
-        if (!didShelf)
+        ResetPreview();
+    }
+
+    private bool IsPickupLayer(int layer) => (pickupMask & (1 << layer)) != 0;
+
+    private bool IsShelfLayer(int layer) => (shelfMask & (1 << layer)) != 0;
+
+    private void HandleShelfHit(RaycastHit hit)
+    {
+        var previewable = hit.collider.GetComponentInParent<IPreviewable>();
+        if (previewable == null) return;
+
+        var prefab = previewable.GetPreviewPrefab();
+        var transformData = previewable.GetPreviewTransform();
+
+        if (prefab != null && transformData.HasValue)
         {
-            HidePreview();
-            currentTarget = null;
-            lastPrefab = null;
+            ShowOrUpdatePreview(prefab, transformData.Value.position, transformData.Value.rotation, previewable);
         }
     }
 
-    private void ShowOrUpdate(GameObject prefab, Vector3 pos, Quaternion rot, IPreviewable prev)
+    private void ShowOrUpdatePreview(GameObject prefab, Vector3 position, Quaternion rotation, IPreviewable previewable)
     {
-        // rebuild jika target/prefab berganti
-        if (prev != currentTarget || prefab != lastPrefab)
+        if (previewable != currentTarget || prefab != lastPrefab)
         {
-            HidePreview();
-            if (previewInstance != null) Destroy(previewInstance);
-            previewInstance = null;
-            currentTarget = prev;
+            ResetPreview();
+            currentTarget = previewable;
             lastPrefab = prefab;
         }
 
         if (previewInstance == null)
         {
             previewInstance = Instantiate(prefab);
-            foreach (var c in previewInstance.GetComponentsInChildren<Collider>())
-                c.enabled = false;
-            foreach (var r in previewInstance.GetComponentsInChildren<Renderer>())
-            {
-                var mats = new Material[r.sharedMaterials.Length];
-                for (int i = 0; i < mats.Length; i++)
-                    mats[i] = wireframeMaterial;
-                r.materials = mats;
-            }
+            DisableColliders(previewInstance);
+            ApplyWireframeMaterial(previewInstance);
         }
 
-        previewInstance.transform.SetPositionAndRotation(pos, rot);
+        previewInstance.transform.SetPositionAndRotation(position, rotation);
         if (!previewInstance.activeSelf)
+        {
             previewInstance.SetActive(true);
+        }
     }
 
-    private void HidePreview()
+    private void ResetPreview()
     {
         if (previewInstance != null && previewInstance.activeSelf)
+        {
             previewInstance.SetActive(false);
+        }
+        currentTarget = null;
+        lastPrefab = null;
+    }
+
+    private void DisableColliders(GameObject obj)
+    {
+        foreach (var collider in obj.GetComponentsInChildren<Collider>())
+        {
+            collider.enabled = false;
+        }
+    }
+
+    private void ApplyWireframeMaterial(GameObject obj)
+    {
+        foreach (var renderer in obj.GetComponentsInChildren<Renderer>())
+        {
+            var materials = new Material[renderer.sharedMaterials.Length];
+            for (int i = 0; i < materials.Length; i++)
+            {
+                materials[i] = wireframeMaterial;
+            }
+            renderer.materials = materials;
+        }
     }
 }

@@ -3,6 +3,9 @@ using UnityEngine;
 
 namespace Placement
 {
+    /// <summary>
+    /// Handles the placement of furniture in the game world.
+    /// </summary>
     public class FurniturePlacer : MonoBehaviour
     {
         public static FurniturePlacer Instance { get; private set; }
@@ -13,8 +16,7 @@ namespace Placement
         [SerializeField] private Material wireframeMaterial;
         [SerializeField] private Material solidMaterial;
 
-        private Dictionary<Renderer, Material[]> originalMaterials = new();
-
+        private readonly Dictionary<Renderer, Material[]> originalMaterials = new();
         private GameObject previewObject;
         private GameObject originalObject;
         private ItemData currentItemData;
@@ -44,6 +46,9 @@ namespace Placement
             UpdatePreviewTransform();
         }
 
+        /// <summary>
+        /// Starts the placement process for a given item.
+        /// </summary>
         public void BeginPlacement(ItemData itemData, GameObject sourceObject)
         {
             if (IsPlacing) return;
@@ -55,16 +60,12 @@ namespace Placement
                 originalObject.SetActive(false);
 
             previewObject = Instantiate(itemData.prefab);
-            originalMaterials.Clear(); // bersihkan dulu
-            foreach (var renderer in previewObject.GetComponentsInChildren<Renderer>())
-            {
-                originalMaterials[renderer] = renderer.sharedMaterials; // pakai sharedMaterials agar tidak instansi baru
-            }
-            previewObject.name = itemData.itemName + "_Preview";
+            CacheOriginalMaterials(previewObject);
+            previewObject.name = $"{itemData.itemName}_Preview";
 
             previewBounds = CalculateBounds(previewObject);
             DisableColliders(previewObject);
-            ApplyWireframeMaterial(previewObject);
+            ApplyMaterial(previewObject, wireframeMaterial);
 
             currentRotation = 0f;
         }
@@ -88,19 +89,15 @@ namespace Placement
         {
             if (cam == null)
             {
-                Debug.LogError("Camera belum diassign di FurniturePlacer.");
+                Debug.LogError("Camera is not assigned in FurniturePlacer.");
                 return;
             }
 
-            if (previewObject == null)
-            {
-                //Debug.LogWarning("Preview object null saat UpdatePreviewTransform.");
-                return;
-            }
+            if (previewObject == null) return;
 
             if (previewBounds.size == Vector3.zero)
             {
-                Debug.LogWarning("Preview bounds kosong. Kemungkinan collider belum terdeteksi.");
+                Debug.LogWarning("Preview bounds are empty. Colliders might not be detected.");
                 return;
             }
 
@@ -127,8 +124,6 @@ namespace Placement
             }
 
             Destroy(previewObject);
-            previewObject = null;
-
             ClearPlacementState();
         }
 
@@ -150,6 +145,7 @@ namespace Placement
             originalObject = null;
             currentRotation = 0f;
             isPlacementBlocked = false;
+            originalMaterials.Clear();
         }
 
         private Bounds CalculateBounds(GameObject obj)
@@ -175,16 +171,12 @@ namespace Placement
         private bool CheckCollisionAtPreview(Vector3 position, Quaternion rotation)
         {
             Bounds worldBounds = new Bounds(position, previewBounds.size);
+            Collider[] hits = new Collider[10]; // Adjust size as needed
+            int hitCount = Physics.OverlapBoxNonAlloc(worldBounds.center, worldBounds.extents, hits, rotation);
 
-            Collider[] hits = Physics.OverlapBox(
-                worldBounds.center,
-                worldBounds.extents,
-                rotation
-            );
-
-            foreach (var hit in hits)
+            for (int i = 0; i < hitCount; i++)
             {
-                if (hit.GetComponent<ShopItemMarker>() != null)
+                if (hits[i].GetComponent<ShopItemMarker>() != null)
                 {
                     return true;
                 }
@@ -193,17 +185,16 @@ namespace Placement
             return false;
         }
 
-        private void ApplyWireframeMaterial(GameObject obj)
+        private void ApplyMaterial(GameObject obj, Material material)
         {
             foreach (Renderer renderer in obj.GetComponentsInChildren<Renderer>())
             {
-                // Ganti semua material jadi wireframeMaterial
                 int count = renderer.sharedMaterials.Length;
-                Material[] wireframes = new Material[count];
+                Material[] materials = new Material[count];
                 for (int i = 0; i < count; i++)
-                    wireframes[i] = new Material(wireframeMaterial); // instansi agar warnanya bisa diubah
+                    materials[i] = new Material(material);
 
-                renderer.materials = wireframes;
+                renderer.materials = materials;
             }
         }
 
@@ -216,27 +207,26 @@ namespace Placement
                     pair.Key.materials = pair.Value;
                 }
             }
+        }
 
+        private void CacheOriginalMaterials(GameObject obj)
+        {
             originalMaterials.Clear();
+            foreach (var renderer in obj.GetComponentsInChildren<Renderer>())
+            {
+                originalMaterials[renderer] = renderer.sharedMaterials;
+            }
         }
 
         private void UpdateWireframeColor(bool isBlocked)
         {
-            if (previewObject == null)
-            {
-                //Debug.LogWarning("Preview object null saat UpdateWireframeColor.");
-                return;
-            }
+            if (previewObject == null) return;
 
             Color color = isBlocked ? Color.red : Color.green;
 
             foreach (Renderer renderer in previewObject.GetComponentsInChildren<Renderer>())
             {
-                if (renderer == null || renderer.material == null)
-                {
-                    Debug.LogWarning("Renderer atau material null dalam UpdateWireframeColor.");
-                    continue;
-                }
+                if (renderer == null || renderer.material == null) continue;
 
                 if (renderer.material.HasProperty("_Color"))
                 {
@@ -244,6 +234,5 @@ namespace Placement
                 }
             }
         }
-
     }
 }

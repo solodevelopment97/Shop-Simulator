@@ -8,130 +8,186 @@ namespace ShopSimulator
     {
         [Header("Konfigurasi Inventory")]
         [Tooltip("Jumlah maksimal slot inventory")]
-        public int maxSlots = 20;
+        public int MaxSlots { get; private set; } = 7;
 
         [Header("Data Inventory")]
-        // Daftar slot inventory yang fixed panjangnya
-        public List<InventorySlot> slots = new List<InventorySlot>();
+        public List<InventorySlot> Slots { get; private set; } = new List<InventorySlot>();
+
+        private Dictionary<string, InventorySlot> itemLookup = new Dictionary<string, InventorySlot>();
 
         private void Awake()
         {
-            // Inisialisasi list dengan maxSlots slot kosong
-            for (int i = 0; i < maxSlots; i++)
+            InitializeSlots();
+        }
+
+        private void InitializeSlots()
+        {
+            for (int i = 0; i < MaxSlots; i++)
             {
-                // Slot kosong direpresentasikan dengan item = null dan quantity = 0
-                slots.Add(new InventorySlot(null, 0));
+                var slot = new InventorySlot(null, 0);
+                Slots.Add(slot);
             }
         }
 
-        /// <summary>
-        /// Menambah item ke inventory.
-        /// Jika item sudah ada, akan dilakukan penumpukan (stack) jika memungkinkan.
-        /// Jika belum ada dan terdapat slot kosong, item akan disimpan di slot kosong.
-        /// </summary>
         public bool AddItem(ItemData newItem, int quantity = 1)
         {
-            // Cek apakah item sudah ada dalam inventory (bisa diubah jika terdapat aturan stackable)
-            InventorySlot slot = slots.Find(x => x.item == newItem);
-            if (slot != null)
+            if (newItem == null || quantity <= 0)
             {
-                // Jika sudah ada, tambahkan quantity
-                slot.quantity += quantity;
-                if (newItem.itemType == ItemType.Box)
-                {
-                    // tambahkan interiorCount sesuai isi setiap kardus
-                    int perBox = newItem.boxQuantities.Sum();
-                    slot.interiorCount += perBox * quantity;
-                }
-                return true;
+                Debug.LogWarning("Invalid item or quantity.");
+                return false;
             }
-            else
-            {
-                // Jika belum ada, cari slot kosong (di mana item == null)
-                var emptySlot = slots.Find(x => x.item == null);
-                if (emptySlot != null)
-                {
-                    emptySlot.item = newItem;
-                    emptySlot.quantity = quantity;
 
-                    if (newItem.itemType == ItemType.Box)
-                    {
-                        // atur interiorCount sesuai isi total kardus
-                        int perBox = newItem.boxQuantities.Sum();
-                        emptySlot.interiorCount = perBox * quantity;
-                    }
-                    else
-                    {
-                        emptySlot.interiorCount = quantity; // untuk ShopItem
-                    }
+            // Cek apakah item bisa ditumpuk di slot yang ada
+            foreach (var slot in Slots)
+            {
+                if (CanAddToSlot(slot, newItem, quantity))
+                {
+                    slot.quantity += quantity;
+                    UpdateInteriorCount(slot, quantity);
                     return true;
                 }
-                else
-                {
-                    Debug.Log("Inventory Full!");
-                    return false;
-                }
             }
+
+            // Jika tidak bisa ditumpuk, cari slot kosong
+            var emptySlot = Slots.FirstOrDefault(s => s.item == null);
+            if (emptySlot != null)
+            {
+                AssignSlot(emptySlot, newItem, quantity);
+                return true;
+            }
+
+            Debug.Log("Inventory Full!");
+            return false;
         }
 
-        /// <summary>
-        /// Menghapus item dari inventory.
-        /// Jika quantity item setelah pengurangan <= 0, maka slot dikosongkan tanpa menggeser index slot.
-        /// </summary>
+        public bool AddBox(ItemData boxData, int quantity, int interiorCount)
+        {
+            if (boxData == null || boxData.itemType != ItemType.Box)
+            {
+                Debug.LogError("Invalid box data provided.");
+                return false;
+            }
+
+            // Cek apakah box bisa ditumpuk di slot yang ada
+            foreach (var slot in Slots)
+            {
+                if (CanAddToSlot(slot, boxData, quantity))
+                {
+                    slot.quantity += quantity;
+                    slot.interiorCount += interiorCount * quantity;
+                    return true;
+                }
+            }
+
+            // Jika tidak bisa ditumpuk, cari slot kosong
+            var emptySlot = Slots.FirstOrDefault(s => s.item == null);
+            if (emptySlot != null)
+            {
+                AssignSlot(emptySlot, boxData, quantity);
+                emptySlot.interiorCount = interiorCount * quantity;
+                return true;
+            }
+
+            Debug.Log("Inventory Full!");
+            return false;
+        }
+
         public bool RemoveItem(ItemData itemToRemove, int quantity = 1)
         {
-            InventorySlot slot = slots.Find(x => x.item == itemToRemove);
-            if (slot != null)
+            if (itemToRemove == null || quantity <= 0)
+            {
+                Debug.LogWarning("Invalid item or quantity.");
+                return false;
+            }
+
+            if (itemLookup.TryGetValue(itemToRemove.itemName, out var slot))
             {
                 slot.quantity -= quantity;
                 if (slot.quantity <= 0)
                 {
-                    // Jangan menghapus slot, cukup set sebagai kosong
-                    slot.item = null;
-                    slot.quantity = 0;
+                    ClearSlot(slot);
                 }
                 return true;
             }
+
+            Debug.LogWarning("Item not found in inventory.");
             return false;
         }
 
-        /// <summary>
-        /// Memeriksa apakah inventory memiliki item tertentu dengan jumlah minimal tertentu.
-        /// </summary>
         public bool HasItem(ItemData checkItem, int quantity = 1)
         {
-            InventorySlot slot = slots.Find(x => x.item == checkItem);
-            return slot != null && slot.quantity >= quantity;
-        }
-        public void UpdateBoxInterior(ItemData boxData, int newInteriorCount)
-        {
-            var slot = slots.Find(s => s.item == boxData);
-            if (slot != null && slot.item.itemType == ItemType.Box)
-                slot.interiorCount = newInteriorCount;
+            return itemLookup.TryGetValue(checkItem.itemName, out var slot) && slot.quantity >= quantity;
         }
 
-        public bool AddBox(ItemData boxData, int interiorCount, int count = 1)
+        public void UpdateBoxInterior(ItemData boxData, int newInteriorCount)
         {
-            var slot = slots.Find(s => s.item == boxData);
-            if (slot != null)
+            if (boxData == null || boxData.itemType != ItemType.Box)
             {
-                slot.quantity += count;
-                slot.interiorCount += interiorCount * count;
-                return true;
+                Debug.LogWarning("Invalid box data.");
+                return;
+            }
+
+            if (itemLookup.TryGetValue(boxData.itemName, out var slot))
+            {
+                slot.interiorCount = newInteriorCount;
+            }
+        }
+
+        private bool CanAddToSlot(InventorySlot slot, ItemData newItem, int quantity)
+        {
+            // Periksa apakah slot dapat menampung item baru
+            return slot.item != null &&
+                   slot.item == newItem &&
+                   newItem.isStackable &&
+                   slot.quantity + quantity <= newItem.maxStackSize;
+        }
+
+        private void AssignSlot(InventorySlot slot, ItemData newItem, int quantity)
+        {
+            slot.item = newItem;
+            slot.quantity = quantity;
+
+            if (newItem.itemType == ItemType.Box)
+            {
+                slot.interiorCount = CalculateInteriorCount(newItem, quantity);
             }
             else
             {
-                var empty = slots.Find(s => s.item == null);
-                if (empty != null)
-                {
-                    empty.item = boxData;
-                    empty.quantity = count;
-                    empty.interiorCount = interiorCount * count;
-                    return true;
-                }
-                Debug.Log("Inventory Full!");
-                return false;
+                slot.interiorCount = quantity;
             }
+
+            itemLookup[newItem.itemName] = slot;
+        }
+
+        private void ClearSlot(InventorySlot slot)
+        {
+            itemLookup.Remove(slot.item.itemName);
+            slot.item = null;
+            slot.quantity = 0;
+            slot.interiorCount = 0;
+        }
+
+        private void UpdateInteriorCount(InventorySlot slot, int quantity)
+        {
+            if (slot.item.itemType == ItemType.Box)
+            {
+                int perBox = slot.item.boxQuantities.Sum();
+                slot.interiorCount += perBox * quantity;
+            }
+        }
+
+        private int CalculateInteriorCount(ItemData boxItem, int quantity)
+        {
+            if (boxItem.boxQuantities == null || boxItem.boxQuantities.Count == 0)
+                return 0;
+
+            int totalInterior = 0;
+            foreach (var count in boxItem.boxQuantities)
+            {
+                totalInterior += count;
+            }
+
+            return totalInterior * quantity;
         }
     }
 }

@@ -25,16 +25,18 @@ public class PlayerMovement : MonoBehaviour
     private CharacterController controller;
     private Vector3 velocity;
     private bool isGrounded;
-    public float currentSpeed;
+    private float currentSpeed;
     private Vector3 currentVelocity;
     private bool isRunning;
 
     public bool IsRunning => isRunning;
-    public bool IsMoving => (Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.1f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.1f);
+    public bool IsMoving => Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.1f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.1f;
+    // Public property to expose currentSpeed
+    public float CurrentSpeed => currentSpeed;
 
     private void Awake()
     {
-        controller = GetComponent<CharacterController>();
+        InitializeComponents();
         currentSpeed = walkSpeed;
 
         if (enableDebugLogs)
@@ -51,18 +53,43 @@ public class PlayerMovement : MonoBehaviour
         UpdateDebugDisplay();
     }
 
+    /// <summary>
+    /// Initializes required components and logs errors if any are missing.
+    /// </summary>
+    private void InitializeComponents()
+    {
+        controller = GetComponent<CharacterController>();
+        if (controller == null)
+        {
+            Debug.LogError("CharacterController component is missing on PlayerMovement.");
+            enabled = false;
+        }
+
+        if (staminaSystem == null)
+        {
+            Debug.LogWarning("StaminaSystem is not assigned. Running will not be restricted by stamina.");
+        }
+    }
+
+    /// <summary>
+    /// Updates the debug display with movement information.
+    /// </summary>
     private void UpdateDebugDisplay()
     {
         if (movementsDebug != null)
         {
             movementsDebug.text = $"Speed: {currentSpeed:F2}\n" +
-                                 $"Grounded: {isGrounded}\n" +
-                                 $"Running: {isRunning}\n" +
-                                 $"Velocity: {currentVelocity}\n" +
-                                 $"Input: ({Input.GetAxisRaw("Horizontal"):F2}, {Input.GetAxisRaw("Vertical"):F2})";
+                                  $"Grounded: {isGrounded}\n" +
+                                  $"Running: {isRunning}\n" +
+                                  $"Velocity: {currentVelocity}\n" +
+                                  $"Input: ({Input.GetAxisRaw("Horizontal"):F2}, {Input.GetAxisRaw("Vertical"):F2})";
         }
     }
 
+    /// <summary>
+    /// Toggles the running state based on stamina availability.
+    /// </summary>
+    /// <param name="enable">True to enable running, false to disable.</param>
     public void ToggleRun(bool enable)
     {
         if (!enable || (staminaSystem == null || staminaSystem.CanRun()))
@@ -77,10 +104,13 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Handles gravity and ground detection.
+    /// </summary>
     private void HandleGravity()
     {
         bool wasGrounded = isGrounded;
-        isGrounded = Physics.CheckSphere(transform.position, groundCheckDistance, groundMask);
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
 
         if (enableDebugLogs && wasGrounded != isGrounded)
         {
@@ -96,8 +126,12 @@ public class PlayerMovement : MonoBehaviour
         controller.Move(velocity * Time.deltaTime);
     }
 
+    /// <summary>
+    /// Handles player movement, including walking, running, and acceleration.
+    /// </summary>
     private void HandleMovement()
     {
+        // Cache input values for performance
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
 
@@ -122,7 +156,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         float targetSpeed = isRunning ? runSpeed : walkSpeed;
-        
+
         if (!canRun && wantToRun)
         {
             targetSpeed = walkSpeed;

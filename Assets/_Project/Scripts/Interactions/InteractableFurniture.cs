@@ -39,7 +39,7 @@ public class InteractableFurniture : MonoBehaviour, IInteractable
     public string GetInteractText()
     {
         return itemData != null
-            ? $"Ambil {itemData.itemName} (E)"
-            : "Ambil Furniture (E)";
+            ? $"Ambil {itemData.itemName}"
+            : "Ambil Furniture";
     }
 }
