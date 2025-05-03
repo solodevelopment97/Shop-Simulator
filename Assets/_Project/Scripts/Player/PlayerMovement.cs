@@ -11,9 +11,12 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float deceleration = 15f;
 
     [Header("Advanced Settings")]
-    [SerializeField] private float gravity = -15f;
+    [SerializeField] private float gravity = -20f;
     [SerializeField] private float groundCheckDistance = 0.2f;
     [SerializeField] private LayerMask groundMask;
+
+    [Header("Jump Settings")]
+    [SerializeField] private float jumpHeight = 2f;
 
     [Header("Stamina")]
     [SerializeField] private PlayerStamina staminaSystem;
@@ -110,7 +113,11 @@ public class PlayerMovement : MonoBehaviour
     private void HandleGravity()
     {
         bool wasGrounded = isGrounded;
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
+
+        // Tambahkan offset ke posisi raycast
+        Vector3 raycastOrigin = transform.position + Vector3.down * 0.1f;
+
+        isGrounded = Physics.Raycast(raycastOrigin, Vector3.down, groundCheckDistance, groundMask);
 
         if (enableDebugLogs && wasGrounded != isGrounded)
         {
@@ -119,11 +126,21 @@ public class PlayerMovement : MonoBehaviour
 
         if (isGrounded && velocity.y < 0)
         {
-            velocity.y = -1f;
+            velocity.y = -1f; // Reset velocity saat menyentuh tanah
+        }
+
+        if (isGrounded && Input.GetButtonDown("Jump"))
+        {
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            if (enableDebugLogs)
+            {
+                Debug.Log("Player jumped");
+            }
         }
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+        Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.red);
     }
 
     /// <summary>
