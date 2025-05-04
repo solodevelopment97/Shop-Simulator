@@ -6,6 +6,8 @@ using TMPro;
 [RequireComponent(typeof(PlayerCarry))]
 public class PlayerInteraction : MonoBehaviour
 {
+    public static PlayerInteraction Instance { get; private set; }
+
     [Header("Interaction Settings")]
     [SerializeField] private float interactRange = 3f;
     [SerializeField] private Transform cameraTransform;
@@ -38,10 +40,23 @@ public class PlayerInteraction : MonoBehaviour
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
         playerCarry = GetComponent<PlayerCarry>();
         cameraTransform ??= Camera.main?.transform;
     }
-
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
     private void Update()
     {
         HandleInput();
@@ -142,6 +157,11 @@ public class PlayerInteraction : MonoBehaviour
 
     private bool TryPickupItem()
     {
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+        {
+            Debug.Log("Cannot pick up items while in furniture placement mode.");
+            return false;
+        }
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, pickupMask))
         {
             if (hit.collider.TryGetComponent<PickupItem>(out var pickupItem))
@@ -155,7 +175,12 @@ public class PlayerInteraction : MonoBehaviour
 
     private bool TryPickupFurniture()
     {
-        if(playerCarry.IsCarrying) return false;
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+        {
+            Debug.Log("Cannot pick up furniture while in furniture placement mode.");
+            return false;
+        }
+        if (playerCarry.IsCarrying) return false;
 
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask | pickupMask))
         {
@@ -200,7 +225,11 @@ public class PlayerInteraction : MonoBehaviour
             }
         }
 
-        // Hint untuk mengambil item
+        if (FurniturePlacer.Instance != null && FurniturePlacer.Instance.IsPlacing)
+        {
+            return;
+        }
+
         if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitPickup, interactRange, pickupMask))
         {
             if (hitPickup.collider.TryGetComponent<PickupItem>(out var pickupItem))
@@ -218,38 +247,6 @@ public class PlayerInteraction : MonoBehaviour
                 uiHintManager.SetHint("Furniture", $"[F] {furniture.GetInteractText()}");
             }
         }
-    }
-
-
-    private string GetInteractHintText()
-    {
-        if (playerCarry.IsCarrying)
-        {
-            var heldItem = playerCarry.HeldItem?.GetComponent<PickupItem>();
-            if (heldItem != null && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hit, interactRange, shelfMask))
-            {
-                return GetStoreHintText(heldItem);
-            }
-        }
-
-        if (Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitPickup, interactRange, pickupMask))
-        {
-            if (hitPickup.collider.TryGetComponent<PickupItem>(out var pickupItem))
-            {
-                return GetPickupHintText(pickupItem);
-            }
-        }
-
-        if (!playerCarry.IsCarrying && Physics.Raycast(cameraTransform.position, cameraTransform.forward, out var hitFurniture, interactRange, shelfMask | pickupMask))
-        {
-            var furniture = hitFurniture.collider.GetComponentInParent<InteractableFurniture>();
-            if (furniture != null)
-            {
-                return $"[F] {furniture.GetInteractText()}";
-            }
-        }
-
-        return string.Empty;
     }
 
     private string GetStoreHintText(PickupItem heldItem)
@@ -273,5 +270,32 @@ public class PlayerInteraction : MonoBehaviour
         return pickupItem.itemData.itemType == ItemType.Box
             ? "[E] Pick up Box"
             : $"[E] Pick up {pickupItem.itemData.itemName}";
+    }
+
+    public void UpdatePlacementHint(bool isBlocked)
+    {
+        if (uiHintManager != null)
+        {          
+            if (isBlocked)
+            {
+                uiHintManager.SetHint("Placement", "Cannot place here!");
+            }
+            else
+            {
+                uiHintManager.SetHint("Placement", "Press Left Mouse Button to place.");
+                uiHintManager.SetHint("CancelPlacement", "Press [Escape] to cancel placement.");
+                uiHintManager.SetHint("RotatePlacement", "Use [Scroll Wheel] to rotate the furniture.");
+            }
+        }
+    }
+
+    public void ClearPlacementHint()
+    {
+        if (uiHintManager != null)
+        {
+            uiHintManager.ClearHint("Placement");
+            uiHintManager.ClearHint("CancelPlacement");
+            uiHintManager.ClearHint("RotatePlacement");
+        }
     }
 }

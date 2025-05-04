@@ -15,7 +15,7 @@ namespace Placement
         [SerializeField] private LayerMask surfaceMask;
         [SerializeField] private Material wireframeMaterial;
         [SerializeField] private Material solidMaterial;
-
+        
         private readonly Dictionary<Renderer, Material[]> originalMaterials = new();
         private GameObject previewObject;
         private GameObject originalObject;
@@ -112,6 +112,7 @@ namespace Placement
                 isPlacementBlocked = CheckCollisionAtPreview(targetPosition, targetRotation);
                 UpdateWireframeColor(isPlacementBlocked);
             }
+            PlayerInteraction.Instance?.UpdatePlacementHint(isPlacementBlocked);
         }
 
         private void ConfirmPlacement()
@@ -146,6 +147,8 @@ namespace Placement
             currentRotation = 0f;
             isPlacementBlocked = false;
             originalMaterials.Clear();
+
+            PlayerInteraction.Instance?.ClearPlacementHint();
         }
 
         private Bounds CalculateBounds(GameObject obj)
