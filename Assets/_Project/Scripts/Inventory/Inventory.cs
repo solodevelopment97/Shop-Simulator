@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
 namespace ShopSimulator
@@ -13,8 +14,7 @@ namespace ShopSimulator
         [Header("Data Inventory")]
         public List<InventorySlot> Slots { get; private set; } = new List<InventorySlot>();
 
-        private Dictionary<string, InventorySlot> itemLookup = new Dictionary<string, InventorySlot>();
-
+        private Dictionary<string, List<InventorySlot>> itemLookup = new Dictionary<string, List<InventorySlot>>();
         private void Awake()
         {
             InitializeSlots();
@@ -100,14 +100,23 @@ namespace ShopSimulator
                 return false;
             }
 
-            if (itemLookup.TryGetValue(itemToRemove.itemName, out var slot))
+            if (itemLookup.TryGetValue(itemToRemove.itemName, out var slots))
             {
-                slot.quantity -= quantity;
-                if (slot.quantity <= 0)
+                foreach (var slot in slots.ToList()) // Gunakan ToList untuk menghindari modifikasi koleksi saat iterasi
                 {
-                    ClearSlot(slot);
+                    if (quantity <= 0) break;
+
+                    int removeAmount = Mathf.Min(slot.quantity, quantity);
+                    slot.quantity -= removeAmount;
+                    quantity -= removeAmount;
+
+                    if (slot.quantity <= 0)
+                    {
+                        ClearSlot(slot);
+                    }
                 }
-                return true;
+
+                return quantity == 0;
             }
 
             Debug.LogWarning("Item not found in inventory.");
@@ -116,7 +125,12 @@ namespace ShopSimulator
 
         public bool HasItem(ItemData checkItem, int quantity = 1)
         {
-            return itemLookup.TryGetValue(checkItem.itemName, out var slot) && slot.quantity >= quantity;
+            if (itemLookup.TryGetValue(checkItem.itemName, out var slots))
+            {
+                int totalQuantity = slots.Sum(slot => slot.quantity);
+                return totalQuantity >= quantity;
+            }
+            return false;
         }
 
         public void UpdateBoxInterior(ItemData boxData, int newInteriorCount)
@@ -127,9 +141,12 @@ namespace ShopSimulator
                 return;
             }
 
-            if (itemLookup.TryGetValue(boxData.itemName, out var slot))
+            if (itemLookup.TryGetValue(boxData.itemName, out var slots))
             {
-                slot.interiorCount = newInteriorCount;
+                foreach (var slot in slots)
+                {
+                    slot.interiorCount = newInteriorCount;
+                }
             }
         }
 
@@ -156,12 +173,27 @@ namespace ShopSimulator
                 slot.interiorCount = quantity;
             }
 
-            itemLookup[newItem.itemName] = slot;
+            if (!itemLookup.ContainsKey(newItem.itemName))
+            {
+                itemLookup[newItem.itemName] = new List<InventorySlot>();
+            }
+            if (!itemLookup[newItem.itemName].Contains(slot))
+            {
+                itemLookup[newItem.itemName].Add(slot);
+            }
         }
 
         private void ClearSlot(InventorySlot slot)
         {
-            itemLookup.Remove(slot.item.itemName);
+            if (itemLookup.TryGetValue(slot.item.itemName, out var slots))
+            {
+                slots.Remove(slot);
+                if (slots.Count == 0)
+                {
+                    itemLookup.Remove(slot.item.itemName);
+                }
+            }
+
             slot.item = null;
             slot.quantity = 0;
             slot.interiorCount = 0;
